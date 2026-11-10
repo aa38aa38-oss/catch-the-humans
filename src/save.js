@@ -24,6 +24,7 @@ export const G = {
   flags: {}, // 劇情進度：打贏了哪些訓練家、拿到哪些徽章
   seen: [], // 圖鑑：遇過的人類種類
   best: {}, // 圖鑑：每種人類抓過的最高肉質
+  caught: {}, // 每種人類總共抓過幾隻（抓滿 4 隻可以快速收服）
   pvp: { w: 0, l: 0, d: 0 },
 };
 
@@ -31,7 +32,7 @@ export function newGame(animalId) {
   Object.assign(G, {
     v: SAVE_VERSION, animal: createIndividual('animal', animalId, 5), humans: [], team: [], nextNo: 1,
     pos: { ...START }, respawn: { ...FIRST_RESPAWN }, money: STARTING_MONEY, bag: { ...STARTING_BAG }, repel: 0,
-    flags: {}, seen: [], best: {}, pvp: { w: 0, l: 0, d: 0 },
+    flags: {}, seen: [], best: {}, caught: {}, pvp: { w: 0, l: 0, d: 0 },
   });
   save();
 }
@@ -55,6 +56,12 @@ function bestOf(humans) {
   const best = {};
   for (const h of humans) if (order.indexOf(h.gradeId) > order.indexOf(best[h.species] ?? '')) best[h.species] = h.gradeId;
   return best;
+}
+
+function countOf(humans) {
+  const c = {};
+  for (const h of humans) c[h.species] = (c[h.species] ?? 0) + 1;
+  return c;
 }
 
 /** 背包加減道具 */
@@ -110,6 +117,7 @@ export function load() {
     flags: d.flags ?? {},
     seen: d.seen ?? [...new Set((d.humans ?? []).map((h) => h.species))],
     best: d.best ?? bestOf(d.humans ?? []),
+    caught: d.caught ?? countOf(d.humans ?? []),
     pvp: { w: 0, l: 0, d: 0, ...d.pvp },
   });
   G.team = G.team.filter((uid) => findHuman(uid)).slice(0, TEAM_HUMANS);

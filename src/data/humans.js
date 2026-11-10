@@ -1,7 +1,7 @@
 // 野生人類圖鑑。目標 51 隻，新增一隻就在這裡加一筆。
 // strength：收服時的掙扎力道（1.0 為標準）
 // moves / learnset / evolveMoves / tms：同 animals.js 的說明
-// lines：專屬台詞，{animal} 主角、{grade} 肉質、{no} 牧場編號
+// lines：專屬台詞，{animal} 主角、{grade} 肉質、{no} 耳標編號
 //   appear  出場
 //   caught  收服成功
 //   breakout  撐破寶貝球（收服失敗，戰鬥繼續）

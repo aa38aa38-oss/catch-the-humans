@@ -35,3 +35,14 @@ export function update(c, dt, rng = Math.random) {
   c.tight = Math.max(0, c.tight - SLIP_PER_SEC * dt);
   if (c.struggle >= 1) c.result = 'escaped';
 }
+
+// ───────── 快速收服 ─────────
+// 同一種人類抓滿 QUICK_AFTER 隻之後，可以跳過連打，直接用機率決定。
+// 機率是照「每秒按 7 下」的實測結果換算的：力道越小越好抓。
+export const QUICK_AFTER = 4;
+
+/** 快速收服的成功率（0～1），參數跟 createCapture 一樣 */
+export function quickChance(opts) {
+  const effort = createCapture(opts).power / BASE_STRUGGLE; // 1 = 滿血、標準力道
+  return Math.max(0, Math.min(1, (0.55 - effort) / 0.17));
+}

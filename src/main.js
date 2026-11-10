@@ -1,10 +1,10 @@
-// 遊戲流程：標題、選家畜、牧場、隊伍、野生戰鬥、連線 PK。
+// 遊戲流程：標題、選家畜、養殖場、隊伍、野生戰鬥、連線 PK。
 // 規則在 battle.js / capture.js / pvp.js，資料在 data/，畫面工具在 ui.js。
 import {
   createBattle, runTurn, replace, chooseAiAction, active, aliveSlots, gainExp, expReward, expToNext,
   fill, pick, tag, rollWild, hasPp, STRUGGLE, makeFighter,
 } from './battle.js';
-import { createCapture, press, update } from './capture.js';
+import { createCapture, press, update, quickChance, QUICK_AFTER } from './capture.js';
 import { ANIMALS, HUMANS, GRADES, MOVES, AREAS, gradeOf, DATA_VERSION } from './data/index.js';
 import { ANIMAL_ORDER } from './data/animals.js';
 import { GENERIC_CAUGHT } from './data/humans.js';
@@ -243,15 +243,14 @@ function drawStory() {
 }
 
 function drawRanch(now) {
-  ctx.fillStyle = C.bg;
+  // 養殖場：水泥牆、血跡、鐵欄杆後面拴著鐵鏈的人類
+  ctx.fillStyle = '#c8c4bc';
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = C.grass;
-  ctx.fillRect(0, 92, W, 100);
-  ctx.fillStyle = '#b08858';
-  ctx.fillRect(0, 112, W, 5);
-  ctx.fillRect(0, 130, W, 5);
-  for (let x = 6; x < W; x += 28) ctx.fillRect(x, 102, 6, 40);
-  text('人類牧場', 18, 14);
+  ctx.fillStyle = '#8a8a86';
+  ctx.fillRect(0, 96, W, 96);
+  ctx.fillStyle = '#7a1414';
+  for (const [x, y, w] of [[30, 170, 22], [150, 182, 30], [250, 160, 16], [96, 110, 12]]) ctx.fillRect(x, y, w, 6);
+  text('人類養殖場', 18, 14);
   text(`已收服 ${G.humans.length} 隻`, 302, 14, C.soft, FONT, 'right');
   const a = G.animal;
   text(`${nameOf(a)}　Lv.${a.level}`, 18, 40);
@@ -263,9 +262,18 @@ function drawRanch(now) {
   if (w + l) text(`PK ${w}勝${l}敗`, 18, 72, C.soft);
   sprite(a.species, 196, 34, 3);
   teamInds().slice(1).forEach((h, i) => {
-    const bob = Math.sin(now / 260 + i) * 2;
-    sprite(h.species, 8 + i * 62, 136 + bob, 2);
+    const shake = Math.sin(now / 240 + i * 1.7) * 2;
+    const x = 8 + i * 62 + shake;
+    // 鐵鏈拴在脖子上
+    ctx.fillStyle = '#b4bac2';
+    for (let k = 0; k < 6; k++) ctx.fillRect(x + 28 + k * 2, 112 + k * 5, 4, 4);
+    sprite(h.species, x, 136, 2);
   });
+  // 前面一排鐵欄杆
+  ctx.fillStyle = '#3a3e46';
+  ctx.fillRect(0, 104, W, 4);
+  ctx.fillRect(0, 186, W, 4);
+  for (let x = 4; x < W; x += 18) ctx.fillRect(x, 104, 4, 86);
   box(0, 192, W, 96);
   drawText();
   drawMenu();
@@ -289,7 +297,7 @@ function drawCard() {
     text('最高肉質', 148, 98, C.soft);
     if (c.gradeId) text(grade.name, 228, 98, GRADE_COL[grade.id]);
     else text('還沒抓到', 228, 98, C.soft);
-    text(`牧場裡有 ${c.owned} 隻`, 148, 122);
+    text(`養殖場裡有 ${c.owned} 隻`, 148, 122);
   } else {
     text('肉質', 148, 98, C.soft);
     text(grade.name, 196, 98, GRADE_COL[grade.id]);
@@ -429,11 +437,11 @@ async function talk(thing) {
   await say('隊伍的體力和招式次數全部回滿了！');
 }
 
-// ───────── 人類牧場：合成強化、出貨 ─────────
+// ───────── 人類養殖場：合成強化、出貨 ─────────
 const LIST_BOX = { x: 0, y: 0, w: W, h: 192, rowH: 32, rows: 5 };
 const shortLabel = (h) => `${nameOf(h)} ${gradeOf(h.gradeId).name} Lv${h.level}`;
 
-/** 從牧場的人類裡選一隻；沒有符合的就回傳 null */
+/** 從養殖場的人類裡選一隻；沒有符合的就回傳 null */
 async function pickHuman(prompt, list, label = shortLabel) {
   if (!list.length) return null;
   show(prompt);
@@ -454,7 +462,7 @@ async function ranchMenu() {
     clearText();
     if (i < 0 || i === 4) return;
     if (!G.humans.length && i !== 3) {
-      await say('牧場裡還沒有人類。先去抓一些回來吧。');
+      await say('養殖場裡還沒有人類。先去抓一些回來吧。');
       continue;
     }
     if (i === 0) await synthMenu();
@@ -466,35 +474,37 @@ async function ranchMenu() {
 
 async function synthMenu() {
   const need = SYNTH_MATERIALS + 1;
-  const countOf = (sp) => G.humans.filter((h) => h.species === sp).length;
-  await say(`合成強化：同種的人類 ${need} 隻合成 1 隻（主體 1 隻＋材料 ${SYNTH_MATERIALS} 隻）。主體的肉質會升一級、能力變強。`);
-  // ★ = 同種已經湊滿，可以合成
-  const main = await pickHuman('要強化哪一隻？（★ 可以合成）', G.humans.filter((h) => (h.boost ?? 0) < MAX_BOOST),
-    (h) => `${countOf(h.species) >= need ? '★' : '　'}${shortLabel(h)}`);
-  if (!main) return;
-  const base = HUMANS[main.species].name;
-  const mats = [];
-  const pool = () => G.humans.filter((h) => h.species === main.species && h.uid !== main.uid && !mats.includes(h));
-  if (pool().length < SYNTH_MATERIALS) {
-    const have = countOf(main.species);
-    await say(`合成需要 ${need} 隻${base}（主體 1 隻＋材料 ${SYNTH_MATERIALS} 隻）。現在有 ${have} 隻，還差 ${need - have} 隻。`);
+  await say(`合成強化：任意 ${need} 隻人類合成 1 隻（主體 1 隻＋材料 ${SYNTH_MATERIALS} 隻）。不同種也可以！`);
+  await say('合成出來會隨機變成其中一種人類。肉質取三隻裡最好的再升一級，能力也會變強。');
+  if (G.humans.length < need) {
+    await say(`養殖場裡只有 ${G.humans.length} 隻人類，還差 ${need - G.humans.length} 隻。`);
     return;
   }
+  const main = await pickHuman('要用哪一隻當主體？（等級、耳標會留下來）', G.humans.filter((h) => (h.boost ?? 0) < MAX_BOOST));
+  if (!main) return;
+  const mats = [];
+  const pool = () => G.humans.filter((h) => h.uid !== main.uid && !mats.includes(h));
   while (mats.length < SYNTH_MATERIALS) {
-    const m = await pickHuman(`選第 ${mats.length + 1} 隻材料（${base}）`, pool());
+    const m = await pickHuman(`選第 ${mats.length + 1} 隻材料`, pool());
     if (!m) return;
     mats.push(m);
   }
-  show(`用 ${mats.map(nameOf).join('和')}強化${nameOf(main)}？材料會消失。`);
+  const kinds = [...new Set([main, ...mats].map((h) => HUMANS[h.species].name))];
+  show(`把${[main, ...mats].map(nameOf).join('、')}丟進絞肉機？材料會消失。`);
   if ((await menu(['合成', '取消'], { x: 180, y: 96, w: 140, h: 96, rowH: 30 })) !== 0) return;
   const before = nameOf(main);
-  const { gradeUp } = synthesize(main, mats);
+  const res = synthesize(main, mats);
   removeHumans(mats.map((m) => m.uid));
+  markSeen(main.species);
+  if (GRADE_ORDER.indexOf(main.gradeId) > GRADE_ORDER.indexOf(G.best[main.species] ?? '')) G.best[main.species] = main.gradeId;
   save();
+  await say('絞肉機轟隆隆地轉了起來……');
+  if (kinds.length > 1) await say(`裡面混著${kinds.join('、')}的味道……`);
   sfx('caught');
-  await say(`${mats.length} 隻${base}被送進了絞肉機……`);
-  await say(`${before}吃下了營養補給品，變成了${nameOf(main)}！能力提升了！`);
-  if (gradeUp) await say(`肉質升級為「${gradeOf(main.gradeId).name}」！`);
+  for (let k = 0; k < 2; k++) await tween(140, (t) => (fx.flash = 0.8 * (1 - t)));
+  if (res.changed) await say(`轟！${before}變成了${nameOf(main)}！`);
+  else await say(`${before}吃下了營養補給品，變成了${nameOf(main)}！`);
+  await say(`肉質是「${gradeOf(main.gradeId).name}」，能力提升了！`);
 }
 
 async function shipMenu() {
@@ -507,7 +517,8 @@ async function shipMenu() {
   G.money += price;
   save();
   sfx('ping');
-  await say(`${nameOf(h)}被裝上冷藏車，出貨了。`);
+  await say(`${nameOf(h)}被解開鐵鏈，拖進了後面的房間。`);
+  await say('……一陣慘叫之後，冷藏車開走了。');
   await say(`得到了 ${price} 元！謝謝惠顧。`);
 }
 
@@ -571,7 +582,7 @@ async function teamScreen() {
     const options = pool.map(humanLabel);
     if (current) options.unshift('移出隊伍');
     if (!options.length) {
-      await say('牧場裡沒有其他人類了。');
+      await say('養殖場裡沒有其他人類了。');
       continue;
     }
     show('要換誰？');
@@ -589,7 +600,7 @@ async function teamScreen() {
 
 async function herdScreen() {
   if (!G.humans.length) {
-    await say('牧場裡還是空的。快去抓第一隻人類吧。');
+    await say('養殖場裡還是空的。快去抓第一隻人類吧。');
     return;
   }
   for (;;) {
@@ -836,7 +847,7 @@ async function shopMenu() {
     if (q < 0) continue;
     const n = qs[q];
     if (G.money < n * it.price) {
-      await say('錢不夠。去牧場出貨一些人類吧。');
+      await say('錢不夠。去養殖場出貨一些人類吧。');
       continue;
     }
     G.money -= n * it.price;
@@ -853,6 +864,7 @@ const markSeen = (species) => { if (!G.seen.includes(species)) G.seen.push(speci
 const GRADE_ORDER = ['CHOICE', 'PRIME', 'A5'];
 function markCaught(ind) {
   markSeen(ind.species);
+  G.caught[ind.species] = (G.caught[ind.species] ?? 0) + 1;
   if (GRADE_ORDER.indexOf(ind.gradeId) > GRADE_ORDER.indexOf(G.best[ind.species] ?? '')) G.best[ind.species] = ind.gradeId;
 }
 
@@ -932,8 +944,13 @@ async function wildBattle(areaId) {
           show('還是要丟嗎？');
           if ((await menu(['還是要丟', '算了'], { x: 180, y: 96, w: 140, h: 96, rowH: 30 })) !== 0) continue;
         }
+        let quick = false;
+        if ((G.caught[e.species] ?? 0) >= QUICK_AFTER) {
+          show(`${e.name}已經抓過 ${G.caught[e.species]} 隻了。`);
+          quick = (await menu(['快速收服', '自己收緊'], { x: 180, y: 96, w: 140, h: 96, rowH: 30 }, { cancel: false })) === 0;
+        }
         addItem(r.ball, -1);
-        const res = await capture(e, ITEMS[r.ball]);
+        const res = await capture(e, ITEMS[r.ball], { quick });
         if (res === 'caught') {
           const ind = createIndividual('human', e.species, e.level, e.gradeId, { no: G.nextNo++ });
           G.humans.push(ind);
@@ -943,7 +960,7 @@ async function wildBattle(areaId) {
           if (G.team.length < TEAM_HUMANS) {
             G.team.push(ind.uid);
             await say(`${e.name}加入了隊伍！`);
-          } else await say(`隊伍滿了。${e.name}被送進牧場。`);
+          } else await say(`隊伍滿了。${e.name}被拴進了養殖場。`);
           scene = 'battle';
           return afterBattle(joined, expReward(e));
         }
@@ -1110,7 +1127,7 @@ async function learnMove(ind, name, moveId) {
   }
 }
 
-async function capture(e, ballItem = ITEMS.BALL) {
+async function capture(e, ballItem = ITEMS.BALL, { quick = false } = {}) {
   await say(`${active(B.st, 0).name}丟出了${ballItem.name}！`, { wait: false });
   await sleep(250);
   sfx('throw');
@@ -1125,18 +1142,30 @@ async function capture(e, ballItem = ITEMS.BALL) {
   B.ball.mode = 'wrap';
   await tween(320, (k) => (B.ball.r = 6 + 56 * ease(k)));
 
-  const cap = createCapture({
+  const capOpts = {
     hpRatio: e.hp / e.stats.hp,
     asleep: e.status === 'sleep',
     strength: HUMANS[e.species].strength,
     gradeStruggle: gradeOf(e.gradeId).struggle,
     ball: ballItem.struggle,
-  });
+  };
+  const cap = createCapture(capOpts);
+  let result;
+  if (quick) {
+    // 快速收服：不用連打，球自己收緊，用機率決定
+    show('快速收服中……');
+    for (let i = 0; i < 3; i++) {
+      sfx('rock');
+      await tween(280, (k) => (B.ball.squash = Math.sin(k * Math.PI * 2) * 0.12));
+      await tween(260, (k) => (B.ball.r = 62 - 8 * (i + k)));
+    }
+    result = Math.random() < quickChance(capOpts) ? 'caught' : 'escaped';
+    B.ball.squash = 0;
+    clearText();
+  }
   clearText();
-  B.cap = cap;
-  B.squeeze = 0;
-  await sleep(400);
-  const result = await new Promise((res) => {
+  if (!quick) { B.cap = cap; B.squeeze = 0; await sleep(400); }
+  result ??= await new Promise((res) => {
     let last = performance.now();
     const f = (k) => {
       if (k === 'A') { press(cap); B.squeeze = 1; sfx('squeeze'); }
@@ -1326,7 +1355,7 @@ async function pvpBattle(conn, mine, getOpp) {
     await say('平手。雙方的人類都累倒了。');
   } else {
     G.pvp.l++;
-    await say('你輸了……回牧場再練練吧。');
+    await say('你輸了……回養殖場再練練吧。');
   }
   save();
 }

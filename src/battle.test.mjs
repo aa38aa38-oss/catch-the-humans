@@ -1,7 +1,7 @@
 // 執行：node src/battle.test.mjs
 import assert from 'node:assert/strict';
 import { createBattle, runTurn, replace, chooseAiAction, active, aliveSlots, gainExp, rollWild } from './battle.js';
-import { createCapture, press, update } from './capture.js';
+import { createCapture, press, update, quickChance } from './capture.js';
 import { ANIMALS, HUMANS, MOVES, GRADES, AREAS, DATA_VERSION } from './data/index.js';
 import { ANIMAL_ORDER } from './data/animals.js';
 import { createIndividual, toWire, fromWire, defaultMoves, movesLearnedAt, learnableMoves } from './individual.js';
@@ -235,20 +235,31 @@ assert.notEqual(playOut(42), playOut(43), '不同種子要有不同結果');
   assert.equal(active(st, 0).stages.acc, -2, '飛沙走石最多降 2 次');
 }
 
-// ── 牧場：合成強化、出貨 ──
+// ── 養殖場：合成強化、出貨 ──
 {
   const main = human('FIREFIGHTER', 10, 'CHOICE');
   const before = makeFighter(main, 0, 0).stats.atk;
-  assert.ok(synthBlock(main, [human('ACE'), human('FIREFIGHTER')]), '材料要同種');
   assert.ok(synthBlock(main, [human('FIREFIGHTER')]), '材料不夠');
+  assert.equal(synthBlock(main, [human('ACE'), human('THING')]), null, '不同種也可以合成');
+  // 同種三隻：一定還是同種，肉質升一級
   assert.equal(synthesize(main, [human('FIREFIGHTER'), human('FIREFIGHTER')]).gradeUp, true);
+  assert.equal(main.species, 'FIREFIGHTER');
   assert.equal(main.gradeId, 'PRIME', '冷凍肉 → 溫體牛');
   assert.equal(main.boost, 1);
   assert.ok(makeFighter(main, 0, 0).stats.atk > before, '能力變強');
   assert.equal(makeFighter(main, 0, 0).name, '消防隊員+1');
-  synthesize(main, [human('FIREFIGHTER'), human('FIREFIGHTER')]);
-  assert.equal(main.gradeId, 'A5');
-  assert.equal(synthesize(main, [human('FIREFIGHTER'), human('FIREFIGHTER')]).gradeUp, false, 'A5 不再升');
+  // 不同種：結果隨機變成其中一種；肉質取最好的再升一級
+  const mix = human('ACE', 12, 'CHOICE');
+  const r = synthesize(mix, [human('THING', 5, 'PRIME'), human('IRON_FAN')], () => 0.5); // 0.5 → 第 2 隻（石頭人）
+  assert.deepEqual([r.changed, mix.species, mix.gradeId, mix.level], [true, 'THING', 'A5', 12], '變成石頭人、溫體牛再升一級 = A5、等級沿用主體');
+  assert.ok(mix.moves.every((m) => learnableMoves('human', 'THING').has(m)), '變種之後招式要換成新物種的');
+  const seenKinds = new Set();
+  for (let i = 0; i < 60; i++) {
+    const m = human('ACE');
+    synthesize(m, [human('THING'), human('IRON_FAN')]);
+    seenKinds.add(m.species);
+  }
+  assert.equal(seenKinds.size, 3, '三種都有機會出現');
   main.boost = MAX_BOOST;
   assert.ok(synthBlock(main, [human('FIREFIGHTER'), human('FIREFIGHTER')]), '強化有上限');
   assert.ok(shipPrice(human('ACE', 10, 'A5')) > shipPrice(human('ACE', 10, 'CHOICE')), 'A5 比較貴');
@@ -303,4 +314,8 @@ const table = [1, 0.6, 0.4, 0.25, 0.1].map((r) => [r, rateAt(r), rateAt(r, true)
 for (const [r, a, s] of table) console.log(`血量 ${r * 100}%：收服率 ${(a * 100).toFixed(0)}%（睡著 ${(s * 100).toFixed(0)}%）`);
 assert.ok(table[0][1] < 0.05, '滿血幾乎抓不到');
 assert.ok(table[4][1] > 0.9, '剩 10% 血幾乎一定抓到');
+// 快速收服的機率要跟手動連打差不多
+assert.equal(quickChance({ hpRatio: 1 }), 0, '快速收服：滿血抓不到');
+assert.equal(quickChance({ hpRatio: 0.1 }), 1, '快速收服：剩 10% 一定抓到');
+assert.ok(quickChance({ hpRatio: 0.3, ball: 0.7 }) > quickChance({ hpRatio: 0.3 }), '黏膠球比較好抓');
 console.log('戰鬥、連線與收服測試全部通過 ✔');

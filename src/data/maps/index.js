@@ -6,8 +6,8 @@
 // warps：踩到 (x, y) 就傳送到另一張地圖的 (tx, ty)
 // npcs：站在地圖上的人，A 鍵對話。{animal} 會換成主角的名字；有 trainer 的是訓練家（見 train.js）
 // shop: true 的看板是商店
-// signs：看板、櫃台等「面對它按 A」會出現的文字；heal: true 是回復點；action: 'ranch' 打開牧場管理
-// pen：牧場裡人類走動的範圍
+// signs：看板、櫃台等「面對它按 A」會出現的文字；heal: true 是回復點；action: 'ranch' 打開養殖場管理
+// stalls：養殖場的豬欄位置，收服的人類被關在裡面
 // labels：畫在地圖上的字
 import { TPE_PLAZA, TPE_HALL, TPE_PLATFORM } from './taipei.js';
 import { RANCH } from './ranch.js';

@@ -66,10 +66,32 @@ function drawTile(t, x, y, now) {
     case 'r': f('#6a6458'); f('#8a8478', 0, 6, T, 3); f('#8a8478', 0, 23, T, 3); for (let i = 2; i < T; i += 10) f('#4a3a2a', i, 4, 5, 24); break;
     case 'f': f('#8cc060'); f('#b08858', 0, 8, T, 4); f('#b08858', 0, 20, T, 4); f('#8c6440', 4, 4, 5, 26); f('#8c6440', 22, 4, 5, 26); break;
     case 'h': f('#9ccc6c'); f('#7cb050', 8, 12, 3, 5); f('#7cb050', 22, 22, 3, 5); break;
-    case 'K': f('#c08a50'); f('#8c5c30', 0, T - 8, T, 8); f('#f6f0e0', 5, 5, 22, 12); f('#46b45c', 9, 8, 14, 5); break;
+    case 'K': f('#9a9a96'); f('#7a5a3a', 0, 6, T, T - 6); f('#5a3e28', 0, T - 6, T, 6); f('#d0d4d8', 8, 9, 14, 7); f('#5a3e28', 22, 11, 7, 3); f('#8a1414', 10, 15, 6, 2); break;
     case 'M': f('#f4f4f0'); f('#46b45c', 0, 0, T, 6); f('#f08a2c', 0, 6, T, 4); f('#c8ccd4', 0, T - 10, T, 10); f('#d84838', 10, 12, 12, 8); break;
     case 'D': f('#c8ccd4'); f('#e45a32', 0, 18, T, 5); f('#3c4c64', 6, 2, 20, 30); f('#9ab0c8', 9, 5, 6, 12); f('#9ab0c8', 17, 5, 6, 12); break;
     case 's': f('#e8e2d2'); f('#3c5ca8', 3, 4, 26, 22); f('#2c4a8c', 3, 4, 26, 6); f('#f4f4f0', 6, 6, 8, 3); break;
+    case 'x': case 'q': case 'v': {
+      // 水泥地，上面有洗不掉的血跡（位置固定，看起來每格都不一樣）
+      const tx = Math.floor((x + 1e4) / T), ty = Math.floor((y + 1e4) / T);
+      const hsh = (a) => { const v = Math.sin((tx + a) * 12.9898 + (ty - a) * 78.233) * 43758.5453; return v - Math.floor(v); };
+      f(t === 'v' ? '#8a7a6a' : '#9a9a96');
+      f(t === 'v' ? '#7a6a5a' : '#8a8a86', 0, T - 2, T, 2);
+      if (t === 'v') { f('#c8b070', 4, 20, 10, 3); f('#c8b070', 18, 8, 8, 3); }
+      if (hsh(1) < (t === 'v' ? 0.6 : 0.3)) {
+        // 一灘乾掉的血，旁邊有拖行的痕跡
+        const bx = 2 + hsh(2) * 12, by = 4 + hsh(3) * 14;
+        f('#5e1010', bx, by + 2, 16, 8); f('#5e1010', bx + 3, by, 10, 12); f('#8a1818', bx + 4, by + 3, 7, 4);
+        if (hsh(7) < 0.5) f('#6a1414', bx + 16, by + 5, 12, 2);
+        f('#5e1010', bx + 6, by + 12, 2, 5);
+      }
+      if (t === 'q') { f('#3a3a40', 4, 10, 24, 12); for (let i = 6; i < 28; i += 5) f('#1e1e24', i, 12, 2, 8); f('#8a1414', 6, 20, 16, 2); }
+      break;
+    }
+    case 'c': f('#9a9a96'); f('#3a3e46', 0, 4, T, 3); f('#3a3e46', 0, 22, T, 3); for (let i = 3; i < T; i += 7) f('#5a606a', i, 0, 3, T); break;
+    case 'H':
+      f('#9a9a96'); f('#4a4e56', 0, 2, T, 3);
+      for (const hx of [6, 20]) { f('#b4bac2', hx, 5, 2, 8); f('#b4bac2', hx - 2, 12, 2, 3); f('#a03a3a', hx - 4, 14, 9, 12); f('#d88a8a', hx - 2, 16, 5, 4); f('#7a1414', hx - 1, 26, 2, 5); }
+      break;
     default: f('#000');
   }
 }
@@ -99,7 +121,7 @@ export function drawWorld(now) {
     const p = npcPos(n);
     sprite(n.sprite, p.x * TILE - camX + 2, p.y * TILE - camY + 2, 1, { flip: n.trainer && p.x > G.pos.x });
   }
-  if (m.pen) drawPen(m.pen, camX, camY, now);
+  if (m.stalls) drawStalls(m.stalls, camX, camY, now);
   // 主角
   const bob = OW.walking ? Math.abs(Math.sin(now / 60)) * -2 : 0;
   const dir = G.pos.dir;
@@ -124,20 +146,26 @@ export function drawWorld(now) {
   }
 }
 
-/** 牧場柵欄裡的人類：每隻輪流站一下、走到下一個隨機地點 */
-function drawPen(pen, camX, camY, now) {
-  const spot = (seed, k) => {
-    const h = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453;
-    return h - Math.floor(h);
-  };
-  G.humans.slice(0, 24).forEach((ind, i) => {
-    const t = now / 3000 + i * 0.37;
-    const k = Math.floor(t);
-    const a = t - k;
-    const walk = a < 0.5 ? 0 : (a - 0.5) * 2; // 前半段站著，後半段走
-    const p = (kk) => [pen.x0 + spot(i + 1, kk) * (pen.x1 - pen.x0), pen.y0 + spot(i + 7, kk + 0.5) * (pen.y1 - pen.y0)];
-    const [x0, y0] = p(k), [x1, y1] = p(k + 1);
-    sprite(ind.species, (x0 + (x1 - x0) * walk) * TILE - camX + 2, (y0 + (y1 - y0) * walk) * TILE - camY + 2, 1);
+/** 養殖場的豬欄：每格關 2 隻，拴著鐵鏈，在原地不安地動來動去 */
+function drawStalls(stalls, camX, camY, now) {
+  G.humans.slice(0, stalls.length * 2).forEach((ind, i) => {
+    const st = stalls[Math.floor(i / 2)];
+    const slot = i % 2;
+    const shake = Math.sin(now / 240 + i * 1.7);
+    const hx = (st.x + slot) * TILE - camX + 2 + shake * 2;
+    const hy = (st.y + 0.55) * TILE - camY;
+    // 鐵鏈：從後牆的鐵環拉到人類的脖子
+    const ringX = (st.x + slot) * TILE - camX + 16, ringY = st.y * TILE - camY + 4;
+    ctx.fillStyle = '#9aa0a8';
+    ctx.fillRect(ringX - 3, ringY - 2, 6, 6);
+    const nx = hx + 14, ny = hy + 12;
+    for (let k = 0; k <= 6; k++) {
+      const t = k / 6;
+      const sag = Math.sin(t * Math.PI) * 6;
+      ctx.fillStyle = k % 2 ? '#6a7078' : '#b4bac2';
+      ctx.fillRect(ringX + (nx - ringX) * t - 2, ringY + (ny - ringY) * t + sag - 2, 4, 4);
+    }
+    sprite(ind.species, hx, hy, 1);
   });
 }
 
