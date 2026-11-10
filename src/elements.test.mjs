@@ -12,4 +12,6 @@ const table = [
 order.forEach((atk, i) =>
   order.forEach((def, j) => assert.equal(getMultiplier(atk, def), table[i][j], `${atk}→${def}`)),
 );
+assert.equal(getMultiplier(null, 'FIRE'), 1.0, '無屬性攻擊');
+assert.equal(getMultiplier('WATER', null), 1.0, '打無屬性');
 console.log('元素相剋表全部通過 ✔');

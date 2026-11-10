@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- ARTIFACT-START -->
+<title>人類捕捉計畫</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+  /* 版面：像一台掌機。橫向時方向鍵在左、畫面在中、A/B 在右；直向時按鍵在畫面下方。 */
+  :root {
+    --shell: #2e3a4e;
+    --shell-dk: #222b3a;
+    --bezel: #171c26;
+    --pad: #12161e;
+    --btn: #d2456e;
+    --btn-dk: #9c2c4e;
+    --label: #a9b4c8;
+    --font: "DotGothic16", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--shell);
+    color: var(--label);
+    font-family: var(--font);
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .console {
+    box-sizing: border-box;
+    height: 100%;
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) auto minmax(150px, 1fr);
+    grid-template-areas: "left screen right";
+    align-items: center;
+    gap: 12px;
+    padding-block: 10px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .bezel {
+    grid-area: screen;
+    background: var(--bezel);
+    border-radius: 10px 10px 34px 10px;
+    padding: 12px 16px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 6px 0 var(--shell-dk);
+  }
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #f6f4ea;
+    border-radius: 2px;
+  }
+  .brand { font-size: 12px; letter-spacing: 0.2em; color: var(--label); }
+  .left { grid-area: left; justify-self: center; }
+  .right { grid-area: right; justify-self: center; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+
+  .dpad { position: relative; width: 138px; height: 138px; }
+  .dpad button { position: absolute; width: 46px; height: 46px; }
+  .dpad .up { left: 46px; top: 0; border-radius: 6px 6px 0 0; }
+  .dpad .down { left: 46px; bottom: 0; border-radius: 0 0 6px 6px; }
+  .dpad .lt { left: 0; top: 46px; border-radius: 6px 0 0 6px; }
+  .dpad .rt { right: 0; top: 46px; border-radius: 0 6px 6px 0; }
+  .dpad .mid { position: absolute; left: 46px; top: 46px; width: 46px; height: 46px; background: var(--pad); }
+  .dpad button { background: var(--pad); border: 0; color: #39424f; font-size: 16px; padding: 0; }
+  .dpad button::after { content: attr(data-arrow); }
+  .dpad button.is-down { background: #000; }
+
+  .ab { display: flex; gap: 14px; transform: rotate(-22deg); }
+  .ab .col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .ab .col:first-child { margin-top: 36px; }
+  .ab button {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: var(--btn); border: 0; box-shadow: 0 4px 0 var(--btn-dk);
+    color: #fff; font: 20px var(--font);
+  }
+  .ab span { font-size: 13px; letter-spacing: 0.1em; }
+  button { cursor: pointer; touch-action: none; }
+  button:focus-visible { outline: 3px solid #f8d040; outline-offset: 3px; }
+  .ab button.is-down { transform: translateY(3px); box-shadow: 0 1px 0 var(--btn-dk); filter: brightness(0.9); }
+  .sound {
+    background: var(--shell-dk); color: var(--label); border: 0; border-radius: 12px;
+    font: 12px var(--font); padding: 5px 12px; letter-spacing: 0.08em;
+  }
+  .keys { font-size: 12px; color: #77839a; text-align: center; line-height: 1.6; display: none; }
+  @media (hover: hover) and (pointer: fine) { .keys { display: block; } }
+
+  /* 直向：畫面在上，按鍵在下 */
+  @media (orientation: portrait) {
+    .console {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto 1fr;
+      grid-template-areas: "screen screen" "left right";
+      align-content: start;
+      padding-block: 14px;
+    }
+    .rotate { display: block !important; }
+  }
+  .rotate { display: none; grid-column: 1 / -1; text-align: center; font-size: 12px; color: #77839a; }
+  @media (prefers-reduced-motion: reduce) { .ab button.is-down { transform: none; } }
+</style>
+</head>
+<body>
+<div class="console">
+  <div class="bezel">
+    <canvas id="screen" width="320" height="288" aria-label="遊戲畫面"></canvas>
+    <div class="brand">人類捕捉計畫</div>
+  </div>
+
+  <div class="left">
+    <div class="dpad" role="group" aria-label="方向鍵">
+      <button class="up" data-key="UP" data-arrow="▲" aria-label="上"></button>
+      <button class="lt" data-key="LEFT" data-arrow="◀" aria-label="左"></button>
+      <div class="mid"></div>
+      <button class="rt" data-key="RIGHT" data-arrow="▶" aria-label="右"></button>
+      <button class="down" data-key="DOWN" data-arrow="▼" aria-label="下"></button>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="ab">
+      <div class="col"><button data-key="B" aria-label="B 鍵">B</button><span>取消</span></div>
+      <div class="col"><button data-key="A" aria-label="A 鍵">A</button><span>決定</span></div>
+    </div>
+    <button class="sound" id="sound" type="button" aria-pressed="true">聲音 開</button>
+    <div class="keys">鍵盤：方向鍵移動<br>Z / 空白鍵 = A　X = B</div>
+  </div>
+  <div class="rotate">把手機橫過來玩更舒服</div>
+</div>
+
+<script>
+  // 把畫面放到最大，同時保持 10:9 比例
+  (function () {
+    const cv = document.getElementById('screen');
+    function fit() {
+      const portrait = innerHeight > innerWidth;
+      const maxH = portrait ? innerHeight * 0.5 : innerHeight - 70;
+      const maxW = portrait ? innerWidth - 64 : innerWidth - 2 * 170 - 64;
+      let h = Math.min(maxH, (maxW * 9) / 10);
+      h = Math.max(144, Math.floor(h));
+      cv.style.height = h + 'px';
+      cv.style.width = Math.floor((h * 10) / 9) + 'px';
+    }
+    addEventListener('resize', fit);
+    fit();
+  })();
+</script>
+<script type="module" src="src/main.js"></script>
+<!-- ARTIFACT-END -->
+</body>
+</html>

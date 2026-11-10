@@ -27,6 +27,8 @@ export const NEUTRAL = 1.0;
 
 /** 攻擊屬性打防守屬性時的傷害倍率 */
 export function getMultiplier(attack, defense) {
+  // 無屬性（null，例如家畜）打人或被打都是 1.0x
+  if (attack == null || defense == null) return NEUTRAL;
   if (!(attack in BEATS) || !(defense in BEATS)) {
     throw new Error(`未知的元素：${attack} / ${defense}`);
   }

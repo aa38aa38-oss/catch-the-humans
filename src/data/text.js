@@ -1,0 +1,28 @@
+// 通用戰鬥文案。{animal} 主角、{human} 野生人類、{user} 使用者、{foe} 對手
+export const TEXT = {
+  whatToDo: '{animal}要做什麼？',
+  useMove: '{user}使出了{move}！',
+  miss: '但是沒有打中！',
+  superEffective: '效果絕佳！',
+  notEffective: '效果不太好……',
+  hits: '打中了 {n} 次！',
+  heal: '{user}回復了體力！',
+  healFull: '但是{user}的體力已經是滿的。',
+  statUp: { atk: '{target}的攻擊上升了！', def: '{target}的防禦上升了！', acc: '{target}的命中上升了！' },
+  statDown: { atk: '{target}的攻擊下降了！', def: '{target}的防禦下降了！', acc: '{target}的命中下降了！' },
+  statMax: '{target}的能力已經不會再變了。',
+  sleep: ['{target}睡著了。睡相安詳，很適合印在產品包裝上。'],
+  alreadyAsleep: '但是{target}已經在睡了。',
+  asleep: '{user}還在呼呼大睡。',
+  wakeUp: '{user}醒過來了！',
+  burn: ['{target}被燒傷了！聞起來……有點香。'],
+  burnTick: '{user}被燒傷折磨著。滋滋作響。',
+
+  throwBall: '{animal}丟出了寶貝球！',
+  mash: '連打 A！把球收緊！',
+  humanFainted: ['{human}昏倒了。', '救護車把他載走了。到手的肉飛了。'],
+  playerFainted: ['{animal}倒下了。', '人類圍了過來，開始討論要紅燒還是清燉。', '……幸好他們吵太久，你趁機逃回了窩。'],
+  run: '你逃走了。不丟臉，你的祖先都沒這個機會。',
+  expGain: '{animal}得到了 {exp} 點經驗值！',
+  levelUp: '{animal}升到了 Lv.{level}！',
+};
