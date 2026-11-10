@@ -451,14 +451,19 @@ async function ranchMenu() {
 }
 
 async function synthMenu() {
-  await say(`合成強化：用 ${SYNTH_MATERIALS} 隻同種的人類當材料，讓主體的肉質升一級、能力變強。`);
-  const main = await pickHuman('要強化哪一隻？', G.humans.filter((h) => (h.boost ?? 0) < MAX_BOOST));
+  const need = SYNTH_MATERIALS + 1;
+  const countOf = (sp) => G.humans.filter((h) => h.species === sp).length;
+  await say(`合成強化：同種的人類 ${need} 隻合成 1 隻（主體 1 隻＋材料 ${SYNTH_MATERIALS} 隻）。主體的肉質會升一級、能力變強。`);
+  // ★ = 同種已經湊滿，可以合成
+  const main = await pickHuman('要強化哪一隻？（★ 可以合成）', G.humans.filter((h) => (h.boost ?? 0) < MAX_BOOST),
+    (h) => `${countOf(h.species) >= need ? '★' : '　'}${shortLabel(h)}`);
   if (!main) return;
   const base = HUMANS[main.species].name;
-  const pool = () => G.humans.filter((h) => h.species === main.species && h.uid !== main.uid && !mats.includes(h));
   const mats = [];
+  const pool = () => G.humans.filter((h) => h.species === main.species && h.uid !== main.uid && !mats.includes(h));
   if (pool().length < SYNTH_MATERIALS) {
-    await say(`材料不夠。還需要 ${SYNTH_MATERIALS - pool().length} 隻${base}。`);
+    const have = countOf(main.species);
+    await say(`合成需要 ${need} 隻${base}（主體 1 隻＋材料 ${SYNTH_MATERIALS} 隻）。現在有 ${have} 隻，還差 ${need - have} 隻。`);
     return;
   }
   while (mats.length < SYNTH_MATERIALS) {
