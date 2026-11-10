@@ -5,6 +5,8 @@ import { createCapture, press, update } from './capture.js';
 import { ANIMALS, HUMANS, MOVES, GRADES, AREAS, DATA_VERSION } from './data/index.js';
 import { ANIMAL_ORDER } from './data/animals.js';
 import { createIndividual, toWire, fromWire, defaultMoves, movesLearnedAt, learnableMoves } from './individual.js';
+import { MAPS, START, FIRST_RESPAWN } from './data/maps/index.js';
+import { TILES } from './data/tiles.js';
 import { myPresence, checkOpponent, setupBattle, encodeAct, decodeAct, mustChoose, stepActions } from './pvp.js';
 
 // ── 資料完整性（人類增加到 51 隻時，這裡會幫忙抓錯）──
@@ -28,6 +30,43 @@ for (const sp of [...Object.values(ANIMALS), ...Object.values(HUMANS)]) {
 }
 for (const a of Object.values(ANIMALS)) for (const m of a.moves) assert.ok(MOVES[m], `${a.name} 的技能 ${m} 不存在`);
 for (const [id, area] of Object.entries(AREAS)) for (const e of area.encounters) assert.ok(HUMANS[e.species], `地區 ${id} 的 ${e.species} 不存在`);
+// ── 地圖完整性 ──
+const walkable = (m, x, y) => TILES[m.rows[y]?.[x]] && !TILES[m.rows[y][x]].solid && !m.npcs?.some((n) => n.x === x && n.y === y);
+for (const [id, m] of Object.entries(MAPS)) {
+  const w = m.rows[0].length;
+  m.rows.forEach((r, y) => {
+    assert.equal(r.length, w, `地圖 ${id} 第 ${y} 列寬度不一致`);
+    for (const ch of r) assert.ok(TILES[ch], `地圖 ${id} 有未定義的格子「${ch}」`);
+  });
+  for (const area of Object.values(m.encounters ?? {})) assert.ok(AREAS[area], `地圖 ${id} 的地區 ${area} 不存在`);
+  for (const wp of m.warps ?? []) {
+    assert.ok(MAPS[wp.to], `地圖 ${id} 傳送到不存在的地圖 ${wp.to}`);
+    assert.ok(walkable(m, wp.x, wp.y), `地圖 ${id} 的傳送點 (${wp.x},${wp.y}) 走不到`);
+    assert.ok(walkable(MAPS[wp.to], wp.tx, wp.ty), `地圖 ${id} 傳送到 ${wp.to} (${wp.tx},${wp.ty}) 是牆`);
+    assert.ok(!MAPS[wp.to].warps?.some((v) => v.x === wp.tx && v.y === wp.ty), `傳送落點不能又是傳送點（會無限傳送）`);
+  }
+  for (const n of m.npcs ?? []) assert.ok(TILES[m.rows[n.y][n.x]] && !TILES[m.rows[n.y][n.x]].solid, `地圖 ${id} 的 NPC 站在牆裡`);
+}
+for (const p of [START, FIRST_RESPAWN]) assert.ok(walkable(MAPS[p.map], p.x, p.y), `起點 / 回復點 ${p.map} (${p.x},${p.y}) 走不到`);
+// 每張地圖的每一格可以走的地方，都要能從起點走到（不會有被困住的區域）
+{
+  const seen = new Set();
+  const q = [[START.map, START.x, START.y]];
+  while (q.length) {
+    const [mid, x, y] = q.pop();
+    const key = `${mid},${x},${y}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const m = MAPS[mid];
+    const wp = m.warps?.find((v) => v.x === x && v.y === y);
+    if (wp) { q.push([wp.to, wp.tx, wp.ty]); continue; }
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (walkable(m, x + dx, y + dy)) q.push([mid, x + dx, y + dy]);
+  }
+  for (const [id, m] of Object.entries(MAPS))
+    m.rows.forEach((r, y) => [...r].forEach((_, x) => {
+      if (walkable(m, x, y)) assert.ok(seen.has(`${id},${x},${y}`), `地圖 ${id} 的 (${x},${y}) 從起點走不到`);
+    }));
+}
 assert.equal(GRADES.reduce((s, g) => s + g.rate, 0).toFixed(5), '1.00000', '肉質機率總和要是 100%');
 
 const human = (sp, lv = 5, g = 'CHOICE') => createIndividual('human', sp, lv, g);
@@ -36,7 +75,7 @@ const animal = (sp, lv = 5) => createIndividual('animal', sp, lv);
 // ── 野生戰鬥：隨機打 2000 場，不能當掉、一定分勝負 ──
 let turnsTotal = 0;
 for (let i = 0; i < 2000; i++) {
-  const w = rollWild(AREAS.START_FIELD, Math.random, GRADES);
+  const w = rollWild(Object.values(AREAS)[i % Object.keys(AREAS).length], Math.random, GRADES);
   const st = createBattle({
     mode: 'wild', seed: i,
     teams: [[animal(ANIMAL_ORDER[i % 4]), human('FIREFIGHTER', 4)], [human(w.species, w.level, w.gradeId)]],

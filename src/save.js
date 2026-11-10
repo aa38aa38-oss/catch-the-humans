@@ -1,6 +1,7 @@
 // 存檔：只存在這支手機的瀏覽器裡。
 // 存檔有版本號，之後格式改變時寫一個 migrate 步驟，舊存檔就能升級而不會壞掉。
 import { createIndividual, defaultMoves } from './individual.js';
+import { START, FIRST_RESPAWN, MAPS } from './data/maps/index.js';
 import { ANIMALS, HUMANS } from './data/index.js';
 
 const KEY = 'cth-save';
@@ -14,19 +15,29 @@ export const G = {
   humans: [],
   team: [], // 上場的人類 uid，最多 4 個
   nextNo: 1,
-  area: 'START_FIELD',
+  pos: { ...START }, // 目前在地圖上的位置
+  respawn: { ...FIRST_RESPAWN }, // 最後一次休息的回復點
   pvp: { w: 0, l: 0, d: 0 },
 };
 
 export function newGame(animalId) {
   Object.assign(G, {
     v: SAVE_VERSION, animal: createIndividual('animal', animalId, 5), humans: [], team: [], nextNo: 1,
-    area: 'START_FIELD', pvp: { w: 0, l: 0, d: 0 },
+    pos: { ...START }, respawn: { ...FIRST_RESPAWN }, pvp: { w: 0, l: 0, d: 0 },
   });
   save();
 }
 
 export const findHuman = (uid) => G.humans.find((h) => h.uid === uid);
+export const findInd = (uid) => (G.animal?.uid === uid ? G.animal : findHuman(uid));
+
+/** 全部回滿（體力、PP） */
+export function healAll() {
+  for (const ind of [G.animal, ...G.humans]) {
+    ind.hp = null;
+    ind.pp = null;
+  }
+}
 /** 目前的隊伍（個體陣列），家畜永遠在第一個 */
 export const teamInds = () => [G.animal, ...G.team.map(findHuman).filter(Boolean)];
 
@@ -67,7 +78,8 @@ export function load() {
     humans: (d.humans ?? []).filter((h) => HUMANS[h.species]),
     team: d.team ?? [],
     nextNo: d.nextNo ?? 1,
-    area: d.area ?? 'START_FIELD',
+    pos: d.pos && MAPS[d.pos.map] ? d.pos : { ...START },
+    respawn: d.respawn && MAPS[d.respawn.map] ? d.respawn : { ...FIRST_RESPAWN },
     pvp: { w: 0, l: 0, d: 0, ...d.pvp },
   });
   G.team = G.team.filter((uid) => findHuman(uid)).slice(0, TEAM_HUMANS);

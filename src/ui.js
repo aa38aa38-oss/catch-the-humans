@@ -114,19 +114,38 @@ const KEYMAP = {
   z: 'A', Z: 'A', ' ': 'A', Enter: 'A', j: 'A',
   x: 'B', X: 'B', Escape: 'B', Backspace: 'B', k: 'B',
 };
+// 按住方向鍵（地圖走路用）：記住目前按著的方向，最後按下的優先
+const DIRS = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
+const held = [];
+let tapped = null; // 很快按一下就放開的方向，也要算走一步
+const hold = (k) => { if (DIRS.includes(k)) { tapped = k; if (!held.includes(k)) held.push(k); } };
+const release = (k) => { const i = held.indexOf(k); if (i >= 0) held.splice(i, 1); };
+/** 目前要走的方向：按住的方向優先，沒有的話看剛剛有沒有點一下 */
+export function heldDir() {
+  const d = held.at(-1) ?? tapped;
+  tapped = null;
+  return d ?? null;
+}
+export const clearTap = () => (tapped = null);
 window.addEventListener('keydown', (e) => {
   const k = KEYMAP[e.key];
   if (!k) return;
   e.preventDefault();
-  if (!e.repeat) emit(k);
+  if (!e.repeat) { hold(k); emit(k); }
 });
+window.addEventListener('keyup', (e) => {
+  const k = KEYMAP[e.key];
+  if (k) release(k);
+});
+window.addEventListener('blur', () => (held.length = 0));
 for (const btn of document.querySelectorAll('[data-key]')) {
   btn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     btn.classList.add('is-down');
+    hold(btn.dataset.key);
     emit(btn.dataset.key);
   });
-  const up = () => btn.classList.remove('is-down');
+  const up = () => { btn.classList.remove('is-down'); release(btn.dataset.key); };
   btn.addEventListener('pointerup', up);
   btn.addEventListener('pointerleave', up);
   btn.addEventListener('pointercancel', up);

@@ -25,7 +25,7 @@ export const TEXT = {
   throwBall: '{animal}丟出了寶貝球！',
   mash: '連打 A！把球收緊！',
   humanFainted: ['{human}昏倒了。', '救護車把他載走了。到手的肉飛了。'],
-  playerFainted: ['{animal}倒下了。', '人類圍了過來，開始討論要紅燒還是清燉。', '……幸好他們吵太久，你趁機逃回了窩。'],
+  playerFainted: ['{animal}倒下了。', '人類圍了過來，開始討論要紅燒還是清燉。', '……幸好他們吵太久，你趁機逃回了便當店。'],
   run: '你逃走了。不丟臉，你的祖先都沒這個機會。',
   expGain: '{animal}得到了 {exp} 點經驗值！',
   levelUp: '{animal}升到了 Lv.{level}！',

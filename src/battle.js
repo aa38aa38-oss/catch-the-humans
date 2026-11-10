@@ -36,10 +36,14 @@ export function makeFighter(ind, side, slot, levelOverride) {
   const level = levelOverride ?? ind.level;
   const moves = ind.moves?.length ? ind.moves : sp.moves;
   const stats = calcStats(sp.base, level, ind.kind === 'animal' ? 1 : grade.statBonus);
+  // 野生戰鬥：沿用個體上一場剩下的體力與 PP（null = 全滿）。PK（有 levelOverride）一律全滿
+  const keep = levelOverride === undefined;
+  const hp = keep && ind.hp != null ? Math.max(0, Math.min(ind.hp, stats.hp)) : stats.hp;
+  const pp = moves.map((id, i) => (keep && ind.pp?.length === moves.length ? Math.min(ind.pp[i], MOVES[id].pp) : MOVES[id].pp));
   return {
     uid: ind.uid, kind: ind.kind, species: ind.species, name: sp.name, gradeId: grade.id,
     element: ind.kind === 'animal' ? null : sp.element,
-    moves: [...moves], pp: moves.map((id) => MOVES[id].pp), level, stats, hp: stats.hp,
+    moves: [...moves], pp, level, stats, hp,
     stages: { atk: 0, def: 0, acc: 0 }, status: null, sleepTurns: 0, healsUsed: 0,
     side, slot,
   };
@@ -56,7 +60,10 @@ export function createBattle({ mode, seed, teams, level }) {
     mode,
     rng: seed >>> 0,
     turn: 0,
-    sides: teams.map((team, s) => ({ team: team.map((ind, i) => makeFighter(ind, s, i, level)), active: 0 })),
+    sides: teams.map((team, s) => {
+      const fighters = team.map((ind, i) => makeFighter(ind, s, i, level));
+      return { team: fighters, active: Math.max(0, fighters.findIndex((f) => f.hp > 0)) }; // 第一隻還能打的先上
+    }),
     need: [],
     winner: null, // 0 / 1 / -1（平手）
   };

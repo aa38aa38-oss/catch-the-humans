@@ -2,7 +2,7 @@
 // 規則在 battle.js / capture.js / pvp.js，資料在 data/，畫面工具在 ui.js。
 import {
   createBattle, runTurn, replace, chooseAiAction, active, aliveSlots, gainExp, expReward, expToNext,
-  fill, pick, tag, rollWild, hasPp, STRUGGLE,
+  fill, pick, tag, rollWild, hasPp, STRUGGLE, makeFighter,
 } from './battle.js';
 import { createCapture, press, update } from './capture.js';
 import { ANIMALS, HUMANS, GRADES, MOVES, AREAS, gradeOf, DATA_VERSION } from './data/index.js';
@@ -14,7 +14,8 @@ import { createIndividual, nameOf, movesLearnedAt, MOVE_SLOTS } from './individu
 import { canConnect, openRoom } from './net.js';
 import { myPresence, checkOpponent, setupBattle, encodeAct, mustChoose, stepActions } from './pvp.js';
 import { randomId } from './rng.js';
-import { G, save, load, hasSave, newGame, teamInds, findHuman, TEAM_HUMANS } from './save.js';
+import { G, save, load, hasSave, newGame, teamInds, findHuman, findInd, healAll, TEAM_HUMANS } from './save.js';
+import { explore, drawWorld, placeAt } from './overworld.js';
 import { SIZE } from './sprites.js';
 import {
   W, H, ctx, C, ELEMENT_COL, GRADE_COL, BIG, FONT, UI, TEXT_X, sleep, ease, tween, loadFont, sfx, waiters, waitKey,
@@ -318,9 +319,18 @@ function drawLobby(now) {
   drawMenu();
 }
 
+function drawWorldScene(now) {
+  drawWorld(now);
+  if (UI.text) {
+    box(0, 192, W, 96);
+    drawText();
+  }
+  drawMenu();
+}
+
 function render(now) {
   ctx.imageSmoothingEnabled = false;
-  const draw = { title: drawTitle, select: drawSelect, story: drawStory, battle: drawBattle, ranch: drawRanch, card: drawCard, lobby: drawLobby }[scene];
+  const draw = { title: drawTitle, select: drawSelect, story: drawStory, battle: drawBattle, ranch: drawRanch, card: drawCard, lobby: drawLobby, world: drawWorldScene }[scene];
   draw?.(now);
   if (fx.flash > 0) {
     ctx.fillStyle = `rgba(255,255,255,${fx.flash})`;
@@ -337,7 +347,7 @@ async function titleScreen() {
   sfx('blip');
   if (hasSave()) {
     const i = await menu(['繼續', '重新開始'], { x: 96, y: 128, w: 128, h: 72, rowH: 26 }, { cancel: false });
-    if (i === 0 && load()) return ranch();
+    if (i === 0 && load()) return world();
   }
   return selectAnimal();
 }
@@ -363,32 +373,83 @@ async function selectAnimal() {
   await say('直到今天早上，牠聽見主人在講電話：「明天就送去。」');
   await say(fill('{animal}決定，換一下立場。', v));
   await say('這一次，輪到人類被圈養。');
-  return wildBattle();
+  await say(fill('運送家畜的貨車停在台北車站前。趁司機去買便當，{animal}跳下了車。', v));
+  return world();
 }
 
-// ───────── 牧場、隊伍、圖鑑 ─────────
-async function ranch() {
-  scene = 'ranch';
-  clearText();
+// ───────── 地圖（台北車站）與選單 ─────────
+async function world() {
+  placeAt(G.pos);
   for (;;) {
-    scene = 'ranch';
-    show('要做什麼？', 140);
-    const i = await menu(['出發狩獵', '隊伍', '人類圖鑑', '連線對戰', '回標題'], { x: 160, y: 120, w: 160, h: 168, rowH: 28 }, { cancel: false });
+    scene = 'world';
     clearText();
-    if (i === 0) return wildBattle();
-    if (i === 1) await teamScreen();
-    if (i === 2) await dexScreen();
-    if (i === 3) await pvpLobby();
-    if (i === 4) return titleScreen();
+    const ev = await explore();
+    if (ev.type === 'encounter') {
+      await wildBattle(ev.area);
+    } else if (ev.type === 'talk') {
+      await talk(ev.thing);
+    } else if (ev.type === 'menu') {
+      if ((await worldMenu()) === 'title') return titleScreen();
+    }
   }
 }
 
-const humanLabel = (h) => `${pad3(h.no)} ${nameOf(h)} Lv${h.level}`;
+const withAnimal = (str) => fill(str, { animal: nameOf(G.animal) });
+
+async function talk(thing) {
+  for (const line of thing.lines) await say(withAnimal(line));
+  if (!thing.heal) return;
+  show('要吃便當休息嗎？');
+  const i = await menu(['吃便當', '不用了'], { x: 180, y: 96, w: 140, h: 96, rowH: 30 });
+  if (i !== 0) {
+    await say('店員：「下次再來喔！」');
+    return;
+  }
+  healAll();
+  G.respawn = { ...G.pos };
+  save();
+  sfx('heal');
+  await say('大家點了素食便當。排骨的部分，誰都沒有碰。');
+  await say('隊伍的體力和招式次數全部回滿了！');
+}
+
+async function worldMenu() {
+  for (;;) {
+    scene = 'world';
+    clearText();
+    const i = await menu(['隊伍', '人類圖鑑', '連線對戰', '存檔', '回標題', '關閉'], { x: 176, y: 0, w: 144, h: 220, rowH: 32 });
+    if (i < 0 || i === 5) return null;
+    if (i === 0) await teamScreen();
+    if (i === 1) await dexScreen();
+    if (i === 2) await pvpLobby();
+    if (i === 3) {
+      save();
+      scene = 'world';
+      await say('存檔完成。');
+    }
+    if (i === 4) {
+      save();
+      return 'title';
+    }
+  }
+}
+
+/** 個體目前的體力：沒記錄就是全滿 */
+function hpOf(ind) {
+  const max = makeFighter(ind, 0, 0).stats.hp;
+  return [ind.hp == null ? max : Math.min(ind.hp, max), max];
+}
+
+const humanLabel = (h) => {
+  const [hp, max] = hpOf(h);
+  return `${pad3(h.no)} ${nameOf(h)} Lv${h.level} ${hp > 0 ? `${hp}/${max}` : '倒下'}`;
+};
 
 async function teamScreen() {
   for (;;) {
     scene = 'ranch';
-    const slots = [`${nameOf(G.animal)} Lv${G.animal.level}（固定）`];
+    const [ahp, amax] = hpOf(G.animal);
+    const slots = [`${nameOf(G.animal)} Lv${G.animal.level} ${ahp > 0 ? `${ahp}/${amax}` : '倒下'}（固定）`];
     for (let i = 0; i < TEAM_HUMANS; i++) {
       const h = findHuman(G.team[i]);
       slots.push(h ? humanLabel(h) : '（空位）');
@@ -557,8 +618,8 @@ async function chooseMember({ forced = false } = {}) {
 }
 
 // ───────── 野生戰鬥 ─────────
-async function wildBattle() {
-  const w = rollWild(AREAS[G.area], Math.random, GRADES);
+async function wildBattle(areaId) {
+  const w = rollWild(AREAS[areaId], Math.random, GRADES);
   const wild = createIndividual('human', w.species, w.level, w.gradeId);
   const st = createBattle({ mode: 'wild', seed: (Math.random() * 2 ** 32) >>> 0, teams: [teamInds(), [wild]] });
   startBattleView(st, 0);
@@ -609,7 +670,7 @@ async function wildBattle() {
     }
     if (st.winner === 1) {
       for (const s of TEXT.playerFainted.slice(1)) await say(fill(s, v));
-      return afterWild(joined, 0);
+      return afterWild(joined, 0, true);
     }
     if (st.need.includes(0)) {
       const slot = await chooseMember({ forced: true });
@@ -618,24 +679,40 @@ async function wildBattle() {
   }
 }
 
-/** 野生戰鬥結束：沒倒下的參戰者都拿經驗值，然後全隊回滿血 */
-async function afterWild(joined, exp) {
+/**
+ * 野生戰鬥結束：體力和 PP 帶回個體（到便當店才補滿）；
+ * 沒倒下的參戰者拿經驗值；全滅就回到最後休息的便當店。
+ */
+async function afterWild(joined, exp, wiped = false) {
   scene = 'battle';
+  for (const f of B.st.sides[0].team) {
+    const ind = findInd(f.uid);
+    if (!ind) continue;
+    ind.hp = f.hp;
+    ind.pp = [...f.pp];
+  }
   if (exp > 0) {
     for (const f of B.st.sides[0].team) {
       if (!joined.has(f.uid) || f.hp <= 0) continue;
-      const ind = f.uid === G.animal.uid ? G.animal : findHuman(f.uid);
+      const ind = findInd(f.uid);
       if (!ind) continue;
+      const oldMax = makeFighter(ind, 0, 0).stats.hp;
       await say(fill(TEXT.expGain, { animal: f.name, exp }));
       for (const lv of gainExp(ind, exp)) {
         sfx('caught');
         await say(fill(TEXT.levelUp, { animal: f.name, level: lv }));
         for (const m of movesLearnedAt(ind.kind, ind.species, lv)) await learnMove(ind, f.name, m);
       }
+      const newMax = makeFighter(ind, 0, 0).stats.hp;
+      if (ind.hp != null) ind.hp = Math.min(newMax, ind.hp + newMax - oldMax); // 升級多出來的體力直接加上去
     }
   }
+  if (wiped) {
+    healAll();
+    placeAt(G.respawn);
+  }
   save();
-  return ranch();
+  return wiped ? 'lose' : 'done';
 }
 
 /** 學新招。招式滿 4 個時讓玩家選一招忘掉，也可以放棄 */
@@ -644,6 +721,7 @@ async function learnMove(ind, name, moveId) {
   if (ind.moves.includes(moveId)) return;
   if (ind.moves.length < MOVE_SLOTS) {
     ind.moves.push(moveId);
+    if (ind.pp) ind.pp.push(MOVES[moveId].pp);
     sfx('ping');
     await say(`${name}學會了${mv}！`);
     return;
@@ -663,6 +741,7 @@ async function learnMove(ind, name, moveId) {
     }
     const old = MOVES[ind.moves[i]].name;
     ind.moves[i] = moveId;
+    if (ind.pp) ind.pp[i] = MOVES[moveId].pp;
     sfx('ping');
     await say(`一、二……噗！${name}忘掉了${old}，學會了${mv}！`);
     return;

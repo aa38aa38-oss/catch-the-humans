@@ -190,7 +190,31 @@ function firefighter() {
   return g.outline();
 }
 
-const DRAW = { COW: cow, PIG: pig, SHEEP: sheep, CHICKEN: chicken, ACE: ace, THING: thing, IRON_FAN: ironFan, FIREFIGHTER: firefighter };
+// ── 地圖上的路人（正面）──
+function person({ hat, hair, shirt, pants, extra }) {
+  const S = '#f0c098';
+  const g = new Grid();
+  g.rect(10, 22, 3, 5, pants).rect(15, 22, 3, 5, pants);
+  g.ell(14, 17, 6, 6, shirt);
+  g.rect(7, 13, 3, 8, shirt).rect(18, 13, 3, 8, shirt);
+  g.px(8, 21, S).px(19, 21, S);
+  g.ell(14, 8, 4.4, 4.6, S);
+  g.rect(10, 4, 9, 2, hair).px(10, 6, hair).px(18, 6, hair);
+  if (hat) g.ell(14, 4, 6, 1.4, hat).rect(10, 1, 9, 3, hat);
+  g.px(12, 8, K).px(16, 8, K).rect(13, 11, 3, 1, '#c87058');
+  extra?.(g);
+  return g.outline();
+}
+const staff = () => person({
+  hat: '#2c4a8c', hair: '#2a2024', shirt: '#3c5ca8', pants: '#24304c',
+  extra: (g) => g.rect(13, 13, 2, 8, '#f0d038').px(11, 2, '#f0d038'),
+});
+const sales = () => person({
+  hair: '#5a3a24', shirt: '#f4f4f0', pants: '#3a3a44',
+  extra: (g) => g.rect(13, 12, 2, 7, '#d83830').rect(19, 15, 5, 3, '#4c88e0'),
+});
+
+const DRAW = { STAFF: staff, SALES: sales, COW: cow, PIG: pig, SHEEP: sheep, CHICKEN: chicken, ACE: ace, THING: thing, IRON_FAN: ironFan, FIREFIGHTER: firefighter };
 const cache = {};
 
 /** 回傳 28×28 的角色圖（canvas） */
