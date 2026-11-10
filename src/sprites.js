@@ -236,16 +236,195 @@ function person({ hat, hair, shirt, pants, extra }) {
   extra?.(g);
   return g.outline();
 }
-const staff = () => person({
-  hat: '#2c4a8c', hair: '#2a2024', shirt: '#3c5ca8', pants: '#24304c',
-  extra: (g) => g.rect(13, 13, 2, 8, '#f0d038').px(11, 2, '#f0d038'),
+// ── 第二批野生人類（正面）──
+/** 人類模板：腿、身體、手、頭；opts 可以換顏色，extra 加特徵 */
+function human({ skin = '#f0c098', shirt, pants, hair, arms, wide = 0, extra }) {
+  const g = new Grid();
+  g.rect(10 - wide, 22, 3, 5, pants).rect(15 + wide, 22, 3, 5, pants);
+  g.ell(14, 17, 6 + wide, 6, shirt);
+  g.rect(7 - wide, 13, 3, 8, arms ?? shirt).rect(18 + wide, 13, 3, 8, arms ?? shirt);
+  g.px(8 - wide, 21, skin).px(19 + wide, 21, skin);
+  g.ell(14, 8, 4.4, 4.6, skin);
+  if (hair) g.rect(10, 4, 9, 2, hair).px(10, 6, hair).px(18, 6, hair);
+  g.px(12, 8, K).px(16, 8, K).rect(13, 11, 3, 1, '#c87058');
+  extra?.(g);
+  return g.outline();
+}
+const akainu = () => human({ shirt: '#a82c2c', pants: '#7a1c1c', hair: '#2a2024', extra: (g) => {
+  g.ell(14, 4, 6, 1.4, '#f4f4f0').rect(10, 1, 9, 3, '#f4f4f0').px(14, 2, '#3c5ca8');
+  g.px(11, 14, '#d83848').px(12, 14, '#d83848');
+  g.ell(4, 19, 3, 3.5, '#f06018').ell(4, 19, 1.6, 2, '#f8d038').ell(24, 19, 3, 3.5, '#f06018').ell(24, 19, 1.6, 2, '#f8d038');
+} });
+const rengoku = () => human({ shirt: '#2a2a34', pants: '#2a2a34', extra: (g) => {
+  g.ell(14, 4, 6, 3.4, '#f8d038').px(9, 2, '#e04828').px(19, 2, '#e04828').px(14, 0, '#e04828').px(11, 1, '#e04828').px(17, 1, '#e04828');
+  g.rect(6, 22, 16, 3, '#f4f4f0').rect(6, 25, 16, 2, '#e04828');
+  g.px(12, 8, '#e04828').px(16, 8, '#e04828');
+} });
+const ash = () => human({ shirt: '#3c5ca8', pants: '#3c5070', hair: '#2a2024', arms: '#2a2a34', extra: (g) => {
+  g.ell(14, 4, 6, 1.4, '#d83830').rect(10, 1, 9, 3, '#d83830').rect(12, 1, 4, 2, '#f4f4f0');
+  g.rect(13, 12, 2, 10, '#2a2a34');
+  g.ell(23, 20, 2.4, 2.4, '#d83830').rect(21, 20, 5, 2, '#f4f4f0').px(23, 20, K);
+} });
+const chef = () => human({ shirt: '#f4f4f0', pants: '#3a3a44', extra: (g) => {
+  g.ell(14, 1.6, 4.6, 2.4, '#f4f4f0').rect(10, 2, 9, 3, '#f4f4f0');
+  g.px(13, 15, '#c8c8c8').px(13, 18, '#c8c8c8');
+  g.ell(24, 17, 3.6, 1.6, '#2a2a34').rect(20, 16, 2, 1, '#5a3e28');
+  g.ell(24, 14, 2, 2, '#f06018').px(24, 12, '#f8d038');
+} });
+const tangKi = () => human({ shirt: '#f0c098', pants: '#2a2a34', hair: '#2a2024', extra: (g) => {
+  g.rect(10, 3, 9, 1, '#d83830');
+  g.line(11, 12, 17, 12, '#d83830'); g.ell(14, 16, 4, 4, '#d83830'); g.px(14, 16, '#f0d038');
+  g.px(10, 17, '#a01818').px(18, 18, '#a01818').px(11, 19, '#a01818');
+  g.ell(24, 19, 2.2, 2.2, '#8a8e98').px(24, 16, '#8a8e98').px(27, 19, '#8a8e98').px(21, 19, '#8a8e98').px(24, 22, '#8a8e98');
+} });
+const aokiji = () => human({ shirt: '#f4f4f0', pants: '#f4f4f0', arms: '#f4f4f0', extra: (g) => {
+  g.ell(14, 4, 5, 2.4, '#2a2024'); g.rect(10, 6, 9, 1, '#5a8ac8');
+  g.rect(13, 12, 2, 8, '#5a8ac8');
+  g.px(3, 14, '#c8ecf8').px(4, 13, '#c8ecf8').px(24, 12, '#c8ecf8').px(25, 14, '#c8ecf8').px(2, 18, '#9ad8f0');
+} });
+const angler = () => human({ shirt: '#9a8a5a', pants: '#5a5040', extra: (g) => {
+  g.ell(14, 4, 6, 1.6, '#c8b070').rect(10, 2, 9, 2, '#c8b070');
+  g.rect(10, 14, 2, 3, '#7a6a40').rect(16, 14, 2, 3, '#7a6a40');
+  g.line(20, 20, 26, 2, '#7a5030'); g.line(26, 2, 26, 9, '#d8d8d8'); g.ell(26, 11, 1.4, 1, '#6cb0e8');
+} });
+const rafting = () => human({ shirt: '#5a8ac8', pants: '#3a3a44', hair: '#2a2024', extra: (g) => {
+  g.rect(11, 11, 6, 2, '#c87058');
+  for (const [x, y] of [[3, 3], [6, 8], [22, 2], [25, 9], [2, 14], [26, 15]]) g.px(x, y, '#9ad8f0').px(x, y + 1, '#9ad8f0');
+  g.line(22, 12, 25, 24, '#f0c830').ell(25, 25, 1.6, 2.2, '#f0c830');
+} });
+const aquaman = () => human({ shirt: '#e8901c', pants: '#3c8a4c', arms: '#f0c098', extra: (g) => {
+  g.ell(14, 5, 5.4, 3.4, '#d8b048').rect(9, 6, 2, 6, '#d8b048').rect(17, 6, 2, 6, '#d8b048');
+  g.rect(11, 11, 6, 2, '#d8b048');
+  for (let y = 13; y < 22; y += 3) g.line(10, y, 18, y, '#c07010');
+  g.line(24, 6, 24, 26, '#f0d038').px(22, 5, '#f0d038').px(26, 5, '#f0d038').px(22, 4, '#f0d038').px(26, 4, '#f0d038').px(24, 3, '#f0d038');
+} });
+const lifeguard = () => human({ skin: '#c88858', shirt: '#c88858', pants: '#d83830', hair: '#2a2024', extra: (g) => {
+  g.px(14, 13, '#f0d038').line(12, 12, 14, 13, '#2a2a34');
+  g.ell(23, 19, 3.6, 3.6, '#d83830').ell(23, 19, 1.6, 1.6, null);
+  g.px(21, 17, '#f4f4f0').px(25, 21, '#f4f4f0');
+} });
+const bullKing = () => human({ skin: '#7a4a30', shirt: '#a83030', pants: '#2a2a34', wide: 1, extra: (g) => {
+  g.ell(14, 8, 5, 4.6, '#7a4a30').ell(14, 11, 2.6, 1.6, '#c89070').px(13, 11, K).px(15, 11, K);
+  g.line(9, 5, 5, 1, '#f0e0a0').line(19, 5, 23, 1, '#f0e0a0').px(4, 2, '#f0e0a0').px(24, 2, '#f0e0a0');
+  g.px(12, 7, '#f0d038').px(16, 7, '#f0d038');
+  g.rect(10, 14, 9, 2, '#f0d038');
+} });
+const colonel = () => human({ shirt: '#f4f4f0', pants: '#f4f4f0', arms: '#f4f4f0', extra: (g) => {
+  g.rect(10, 4, 9, 2, '#e8e8e8');
+  g.rect(11, 7, 3, 2, '#2a2a34').rect(15, 7, 3, 2, '#2a2a34').px(14, 7, '#2a2a34');
+  g.ell(14, 12, 2, 1.6, '#e8e8e8');
+  g.line(13, 13, 13, 16, '#2a2a34').line(15, 13, 15, 16, '#2a2a34');
+  g.rect(21, 15, 6, 7, '#d83830').rect(22, 15, 1, 7, '#f4f4f0').rect(24, 15, 1, 7, '#f4f4f0').ell(24, 14, 3, 1.4, '#c88830');
+} });
+const hulk = () => human({ skin: '#6cb048', shirt: '#6cb048', pants: '#7a4aa0', hair: '#1e1e24', wide: 2, extra: (g) => {
+  g.ell(14, 17, 9, 6.4, '#6cb048'); g.px(10, 16, '#4c8a30').px(18, 16, '#4c8a30').line(12, 19, 16, 19, '#4c8a30');
+  g.rect(4, 12, 3, 9, '#6cb048').rect(21, 12, 3, 9, '#6cb048');
+  g.rect(12, 11, 5, 1, '#2a2a34');
+} });
+const ryotsu = () => human({ shirt: '#3c5ca8', pants: '#2c3c70', hair: '#2a2024', extra: (g) => {
+  g.ell(14, 4, 5.6, 1.4, '#2c3c70').rect(10, 2, 9, 2, '#2c3c70').px(14, 2, '#f0d038');
+  g.rect(10, 6, 9, 1, '#1e1e24');
+  g.rect(13, 13, 2, 7, '#f0d038');
+  g.rect(9, 26, 4, 1, '#c8a070').rect(15, 26, 4, 1, '#c8a070');
+  g.rect(21, 18, 5, 3, '#5aa050').px(23, 19, '#f0d038');
+} });
+const gaara = () => human({ shirt: '#8a5a3a', pants: '#5a3e28', extra: (g) => {
+  g.ell(14, 4, 5.4, 2.6, '#c83020').px(9, 3, '#c83020').px(19, 3, '#c83020').px(14, 1, '#c83020');
+  g.rect(11, 7, 3, 2, '#2a2a34').rect(15, 7, 3, 2, '#2a2a34').px(12, 8, '#8ad0b0').px(16, 8, '#8ad0b0');
+  g.px(11, 5, '#d83830').px(12, 5, '#d83830');
+  g.ell(22, 12, 3.6, 4.6, '#c8a070').ell(22, 7, 2, 1.6, '#c8a070').rect(18, 13, 8, 1, '#8a6a40');
+  for (const [x, y] of [[3, 24], [5, 22], [25, 25], [23, 23], [2, 20]]) g.px(x, y, '#d8c090');
+} });
+const ronald = () => human({ skin: '#f8f4ec', shirt: '#f0c830', pants: '#f0c830', arms: '#f4f4f0', extra: (g) => {
+  g.ell(14, 4, 6.4, 3, '#d83830').px(8, 6, '#d83830').px(20, 6, '#d83830');
+  g.rect(12, 10, 5, 2, '#d83830').px(11, 9, '#d83830').px(17, 9, '#d83830');
+  for (let y = 14; y < 21; y += 2) { g.rect(7, y, 3, 1, '#d83830'); g.rect(18, y, 3, 1, '#d83830'); }
+  g.rect(9, 25, 5, 2, '#d83830').rect(15, 25, 5, 2, '#d83830');
+} });
+const batman = () => human({ shirt: '#6a6e78', pants: '#2a2a34', arms: '#2a2a34', extra: (g) => {
+  g.ell(14, 7, 4.8, 4.4, '#2a2a34').px(10, 2, '#2a2a34').px(10, 3, '#2a2a34').px(18, 2, '#2a2a34').px(18, 3, '#2a2a34');
+  g.rect(12, 9, 5, 3, '#f0c098').rect(13, 11, 3, 1, '#c87058');
+  g.px(12, 7, '#f4f4f0').px(16, 7, '#f4f4f0');
+  g.ell(14, 15, 2.4, 1.2, '#f0d038').px(14, 15, '#2a2a34');
+  g.rect(10, 20, 9, 1, '#f0d038');
+  g.line(4, 12, 2, 26, '#1e1e24').line(24, 12, 26, 26, '#1e1e24');
+} });
+const mountainMonkey = () => {
+  const g = new Grid();
+  const M = '#8a5a3a', F = '#e0b088';
+  g.ell(14, 24, 3.4, 3.4, '#2a2a34').ell(14, 24, 1.4, 1.4, '#8a8e98');
+  g.rect(7, 14, 14, 3, '#3a3a44').rect(5, 13, 3, 2, '#9aa0a8').rect(20, 13, 3, 2, '#9aa0a8');
+  g.ell(14, 18, 5, 3, '#d83830');
+  g.rect(9, 15, 2, 4, M).rect(17, 15, 2, 4, M);
+  g.ell(14, 8, 4.8, 4.6, M).ell(14, 9.5, 3.2, 2.8, F);
+  g.ell(8.5, 8, 1.6, 1.8, F).ell(19.5, 8, 1.6, 1.8, F);
+  g.px(12, 8, K).px(16, 8, K).rect(13, 11, 3, 1, '#a05a40');
+  g.ell(14, 4, 5.4, 2.4, '#f4f4f0').rect(9, 4, 11, 1, '#2a2a34');
+  g.rect(13, 20, 2, 2, '#f0d038');
+  return g.outline();
+};
+const hanzo = () => human({ shirt: '#2a2a34', pants: '#2a2a34', arms: '#2a2a34', extra: (g) => {
+  g.ell(14, 8, 4.8, 4.8, '#2a2a34');
+  g.rect(11, 7, 7, 2, '#f0c098').px(12, 8, K).px(16, 8, K);
+  g.line(18, 5, 23, 3, '#a83030').line(18, 6, 24, 6, '#a83030');
+  g.rect(10, 18, 9, 1, '#6a6e78');
+  g.px(24, 18, '#9aa0a8').px(23, 19, '#9aa0a8').px(25, 19, '#9aa0a8').px(24, 20, '#9aa0a8').px(24, 19, '#2a2a34');
+} });
+
+// ── 動物 NPC：動物的頭臉，身體穿制服 ──
+/** 穿衣服的動物：body 決定制服，head 畫頭 */
+function animalPerson({ shirt, pants, head, extra }) {
+  const g = new Grid();
+  g.rect(10, 22, 3, 5, pants).rect(15, 22, 3, 5, pants);
+  g.ell(14, 17, 6, 6, shirt);
+  g.rect(7, 13, 3, 8, shirt).rect(18, 13, 3, 8, shirt);
+  head(g);
+  extra?.(g);
+  return g.outline();
+}
+// 柴犬站務員（大廳）
+const staff = () => animalPerson({
+  shirt: '#3c5ca8', pants: '#24304c',
+  head: (g) => {
+    const O = '#e0a050', W = '#f8f0e0';
+    g.ell(14, 8, 5, 4.6, O).ell(14, 10, 3, 2.2, W).px(14, 9, K);
+    g.px(10, 3, O).px(10, 4, O).px(11, 4, O).px(18, 3, O).px(18, 4, O).px(17, 4, O);
+    g.px(12, 7, K).px(16, 7, K);
+    g.ell(14, 3.5, 5.5, 1.3, '#2c4a8c').px(14, 2, '#f0d038');
+  },
+  extra: (g) => g.rect(13, 13, 2, 8, '#f0d038').px(8, 21, '#e0a050').px(19, 21, '#e0a050'),
 });
-const sales = () => person({
-  hair: '#5a3a24', shirt: '#f4f4f0', pants: '#3a3a44',
-  extra: (g) => g.rect(13, 12, 2, 7, '#d83830').rect(19, 15, 5, 3, '#4c88e0'),
+// 黑貓站務員（月台）
+const catStaff = () => animalPerson({
+  shirt: '#3c5ca8', pants: '#24304c',
+  head: (g) => {
+    const B = '#2a2a32';
+    g.ell(14, 8, 4.8, 4.4, B);
+    g.px(10, 3, B).px(10, 4, B).px(11, 4, B).px(18, 3, B).px(18, 4, B).px(17, 4, B);
+    g.px(12, 8, '#f0d038').px(16, 8, '#f0d038').px(14, 10, '#f0a0b0');
+    g.line(9, 10, 11, 10, '#9aa0a8').line(17, 10, 19, 10, '#9aa0a8');
+    g.ell(14, 3.5, 5.5, 1.3, '#2c4a8c');
+  },
+  extra: (g) => g.rect(13, 13, 2, 8, '#f0d038').px(8, 21, '#2a2a32').px(19, 21, '#2a2a32'),
+});
+// 狐狸推銷員（廣場）
+const sales = () => animalPerson({
+  shirt: '#f4f4f0', pants: '#3a3a44',
+  head: (g) => {
+    const O = '#e87830', W = '#f8f0e0';
+    g.ell(14, 8, 4.8, 4.2, O).ell(14, 10.5, 3.4, 2, W).px(14, 11, K);
+    g.px(9, 2, O).px(10, 3, O).px(10, 4, O).px(19, 2, O).px(18, 3, O).px(18, 4, O);
+    g.px(12, 7, K).px(16, 7, K);
+  },
+  extra: (g) => g.rect(13, 12, 2, 7, '#d83830').rect(19, 15, 5, 3, '#4c88e0').px(8, 21, '#e87830').px(19, 21, '#e87830'),
 });
 
-const DRAW = { RAT: rat, PIGEON: pigeon, STAFF: staff, SALES: sales, COW: cow, PIG: pig, SHEEP: sheep, CHICKEN: chicken, ACE: ace, THING: thing, IRON_FAN: ironFan, FIREFIGHTER: firefighter };
+const DRAW = {
+  AKAINU: akainu, RENGOKU: rengoku, ASH: ash, CHEF: chef, TANG_KI: tangKi,
+  AOKIJI: aokiji, ANGLER: angler, RAFTING: rafting, AQUAMAN: aquaman, LIFEGUARD: lifeguard,
+  BULL_KING: bullKing, COLONEL: colonel, HULK: hulk, RYOTSU: ryotsu, GAARA: gaara,
+  RONALD: ronald, BATMAN: batman, MOUNTAIN_MONKEY: mountainMonkey, HANZO: hanzo,
+  RAT: rat, PIGEON: pigeon, STAFF: staff, CAT_STAFF: catStaff, SALES: sales, COW: cow, PIG: pig, SHEEP: sheep, CHICKEN: chicken, ACE: ace, THING: thing, IRON_FAN: ironFan, FIREFIGHTER: firefighter };
 const cache = {};
 
 /** 回傳 28×28 的角色圖（canvas） */

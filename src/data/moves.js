@@ -155,4 +155,126 @@ export const MOVES = {
     effect: { heal: 0.35 },
     text: '{user}先救了自己。',
   },
+
+  // ── 第二批野生人類 ──
+  // 火
+  GREAT_ERUPTION: { name: '大噴火', kind: 'attack', element: 'FIRE', pp: 10, power: 70, accuracy: 90 },
+  ABSOLUTE_JUSTICE: {
+    name: '徹底的正義', kind: 'status', element: 'FIRE', pp: 10, accuracy: 100,
+    effect: { stat: 'atk', stages: 2, target: 'self' },
+    text: '{user}：「邪惡必須徹底消滅！」……他說的邪惡，是{foe}。',
+  },
+  SHIRANUI: { name: '炎之呼吸・不知火', kind: 'attack', element: 'FIRE', pp: 15, power: 45, accuracy: 100, priority: 1 },
+  FLAME_TIGER: { name: '炎之呼吸・炎虎', kind: 'attack', element: 'FIRE', pp: 10, power: 75, accuracy: 90 },
+  I_CHOOSE_YOU: {
+    name: '就決定是你了', kind: 'attack', element: 'FIRE', pp: 15, power: 55, accuracy: 100,
+    text: '{user}丟出了紅白相間的球……裡面什麼都沒有。',
+  },
+  FOREVER_TEN: {
+    name: '永遠十歲', kind: 'status', element: 'FIRE', pp: 5, accuracy: 100,
+    effect: { heal: 0.5 },
+    text: '{user}過了二十幾年，還是十歲。',
+  },
+  WOK_FIRE: { name: '大火快炒', kind: 'attack', element: 'FIRE', pp: 15, power: 60, accuracy: 95 },
+  THICKEN: {
+    name: '勾芡', kind: 'status', element: 'FIRE', pp: 15, accuracy: 100,
+    effect: { stat: 'acc', stages: -1, target: 'foe', limit: 2 },
+    text: '一勺太白粉水潑過去，{foe}黏得睜不開眼睛。',
+  },
+  FIRE_WALK: {
+    name: '過火', kind: 'attack', element: 'FIRE', pp: 15, power: 50, accuracy: 100,
+    effect: { status: 'burn', target: 'foe', chance: 0.3 },
+  },
+  POSSESSION: {
+    name: '起乩', kind: 'status', element: 'FIRE', pp: 10, accuracy: 100,
+    effect: { stat: 'atk', stages: 2, target: 'self' },
+    text: '{user}全身發抖……神明附身了！',
+  },
+  // 水
+  ICE_AGE: {
+    name: '冰河時代', kind: 'attack', element: 'WATER', pp: 10, power: 60, accuracy: 95,
+    effect: { status: 'sleep', target: 'foe', chance: 0.2 },
+    text: '{foe}被凍住，動不了了！',
+  },
+  LAZY_JUSTICE: {
+    name: '懶散的正義', kind: 'status', element: 'WATER', pp: 5, accuracy: 100,
+    effect: { heal: 0.5 },
+    text: '{user}把眼罩拉下來，打了個盹。',
+  },
+  CAST_ROD: { name: '甩竿', kind: 'attack', element: 'WATER', pp: 20, power: 45, accuracy: 95 },
+  SLACK_OFF: {
+    name: '摸魚', kind: 'status', element: 'WATER', pp: 10, accuracy: 100,
+    effect: { heal: 0.35 },
+    text: '{user}坐下來等魚上鉤，順便休息一下。',
+  },
+  TYPHOON_RAFTING: { name: '颱風天就是要泛舟', kind: 'attack', element: 'WATER', pp: 10, power: 75, accuracy: 85, recoil: 0.1 },
+  SHOUT_OUT: {
+    name: '大聲說出來', kind: 'status', element: 'WATER', pp: 15, accuracy: 100,
+    effect: { stat: 'atk', stages: -1, target: 'foe' },
+    text: '{user}對著鏡頭大吼：「颱風天就是要泛舟啊！」{foe}被嚇到了。',
+  },
+  TRIDENT: { name: '海神三叉戟', kind: 'attack', element: 'WATER', pp: 15, power: 65, accuracy: 95 },
+  FISH_SWARM: { name: '召喚魚群', kind: 'attack', element: 'WATER', pp: 15, power: 20, accuracy: 95, hits: [2, 4] },
+  LIFEBUOY: { name: '丟救生圈', kind: 'attack', element: 'WATER', pp: 20, power: 50, accuracy: 100 },
+  CPR: {
+    name: '人工呼吸', kind: 'status', element: 'WATER', pp: 5, accuracy: 100,
+    effect: { heal: 0.4 },
+    text: '{user}對自己做了人工呼吸。……這在醫學上不太可能。',
+  },
+  // 土
+  DEMON_BULL_FIST: { name: '大力牛魔拳', kind: 'attack', element: 'EARTH', pp: 15, power: 70, accuracy: 90 },
+  BULL_ROAR: {
+    name: '牛魔吼', kind: 'status', element: 'EARTH', pp: 15, accuracy: 100,
+    effect: { stat: 'atk', stages: -1, target: 'foe' },
+    text: '{user}一聲大吼，地面都在晃。',
+  },
+  SECRET_SPICES: {
+    name: '十一種香料', kind: 'status', element: 'EARTH', pp: 15, accuracy: 100,
+    effect: { stat: 'def', stages: -1, target: 'foe' },
+    text: '{user}把祕密香料撒在{foe}身上，醃得很入味。',
+  },
+  ORIGINAL_RECIPE: { name: '原味炸雞', kind: 'attack', element: 'EARTH', pp: 15, power: 60, accuracy: 100 },
+  HULK_SMASH: { name: '浩克砸', kind: 'attack', element: 'EARTH', pp: 10, power: 85, accuracy: 85 },
+  ANGRIER: {
+    name: '越氣越強', kind: 'status', element: 'EARTH', pp: 10, accuracy: 100,
+    effect: { stat: 'atk', stages: 2, target: 'self' },
+    text: '{user}的衣服又被撐破了。',
+  },
+  POLICE_BIKE: { name: '巡邏腳踏車衝撞', kind: 'attack', element: 'EARTH', pp: 20, power: 55, accuracy: 100 },
+  GET_RICH_SCHEME: {
+    name: '發財大計畫', kind: 'status', element: 'EARTH', pp: 5, accuracy: 100,
+    effect: { heal: 0.5 },
+    text: '{user}偷賣了上司的模型，用賺來的錢吃了一頓好的。',
+  },
+  SAND_BURIAL: { name: '沙瀑送葬', kind: 'attack', element: 'EARTH', pp: 15, power: 65, accuracy: 95 },
+  SAND_SHIELD: {
+    name: '沙之盾', kind: 'status', element: 'EARTH', pp: 10, accuracy: 100,
+    effect: { stat: 'def', stages: 2, target: 'self' },
+    text: '沙子自己擋在{user}前面。',
+  },
+  // 風
+  HAPPY_MEAL: {
+    name: '歡樂兒童餐', kind: 'status', element: 'WIND', pp: 10, accuracy: 80,
+    effect: { status: 'sleep', target: 'foe' },
+    text: '{foe}吃完兒童餐，滿足地睡著了……玩具還沒拆。',
+  },
+  FRY_MISSILE: { name: '薯條飛彈', kind: 'attack', element: 'WIND', pp: 15, power: 20, accuracy: 90, hits: [2, 5] },
+  BATARANG: { name: '蝙蝠鏢', kind: 'attack', element: 'WIND', pp: 20, power: 45, accuracy: 100, priority: 1 },
+  SMOKE_BOMB: {
+    name: '煙霧彈', kind: 'status', element: 'WIND', pp: 15, accuracy: 100,
+    effect: { stat: 'acc', stages: -1, target: 'foe', limit: 2 },
+    text: '{user}壓低聲音說：「我是蝙蝠俠。」然後消失在煙霧裡。',
+  },
+  KNEE_DOWN: { name: '壓車過彎', kind: 'attack', element: 'WIND', pp: 15, power: 65, accuracy: 90 },
+  STRAIGHT_PIPE: {
+    name: '改管排氣', kind: 'status', element: 'WIND', pp: 15, accuracy: 100,
+    effect: { stat: 'atk', stages: -1, target: 'foe' },
+    text: '轟轟轟轟——！{foe}被吵到耳鳴了。',
+  },
+  SHURIKEN: { name: '手裡劍', kind: 'attack', element: 'WIND', pp: 20, power: 25, accuracy: 95, hits: [2, 4] },
+  NINJA_VANISH: {
+    name: '忍術・隱身', kind: 'status', element: 'WIND', pp: 10, accuracy: 100,
+    effect: { stat: 'acc', stages: -1, target: 'foe', limit: 2 },
+    text: '{user}消失了。……其實躲在{foe}背後。',
+  },
 };

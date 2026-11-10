@@ -426,7 +426,7 @@ async function talk(thing) {
   show('要吃便當休息嗎？');
   const i = await menu(['吃便當', '不用了'], { x: 180, y: 96, w: 140, h: 96, rowH: 30 });
   if (i !== 0) {
-    await say('店員：「下次再來喔！」');
+    await say('豬店員：「下次再來喔！」');
     return;
   }
   healAll();
@@ -835,7 +835,7 @@ async function shopMenu() {
     show(`錢包：${G.money} 元\n要買什麼？`);
     const i = await menu(SHOP.map((id) => `${ITEMS[id].name}　${ITEMS[id].price}元`), LIST_BOX);
     if (i < 0) {
-      await say('店員：「謝謝光臨！」');
+      await say('浣熊店員：「謝謝光臨！」');
       return;
     }
     const id = SHOP[i];
@@ -855,7 +855,7 @@ async function shopMenu() {
     save();
     sfx('ping');
     await say(`買了 ${n} 個${it.name}！`);
-    if (G.animal.species === 'CHICKEN') await say('店員：「要不要加購一顆茶葉蛋？」……雞沉默了。');
+    if (G.animal.species === 'CHICKEN') await say('浣熊店員：「要不要加購一顆茶葉蛋？」……雞沉默了。');
   }
 }
 
@@ -918,6 +918,8 @@ async function wildBattle(areaId) {
   markSeen(e.species);
   const v = { animal: nameOf(G.animal), human: e.name };
   await say(fill(pick(HUMANS[e.species].lines.appear), v));
+  const rivalLine = HUMANS[e.species].rival?.[G.animal.species];
+  if (rivalLine) await say(rivalLine);
   if (e.gradeId === 'A5') {
     // A5 和牛：稀有的「閃光」，要有儀式感
     sfx('caught');
