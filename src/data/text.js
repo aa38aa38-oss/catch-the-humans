@@ -4,6 +4,8 @@ export const TEXT = {
   useMove: '{user}使出了{move}！',
   miss: '但是沒有打中！',
   recoil: '{user}受到了反作用力的傷害！',
+  drain: '{user}吸收了{foe}的養分！',
+  restSleep: '{user}吃飽就睡著了。',
   noPp: '這招已經用完了！',
   superEffective: '效果絕佳！',
   notEffective: '效果不太好……',

@@ -124,11 +124,19 @@ function applyEffect(e, user, target, events, r, moveText, vars) {
     user.hp = Math.min(user.stats.hp, user.hp + Math.ceil(user.stats.hp * e.heal));
     events.push({ t: 'hp', side: user.side, hp: user.hp });
     events.push({ t: 'text', text: fill(TEXT.heal, v) });
+    if (e.rest) {
+      // 睡覺回血：異常狀態換成睡著，固定睡 e.rest 回合
+      user.status = 'sleep';
+      user.sleepTurns = e.rest;
+      events.push({ t: 'text', text: fill(TEXT.restSleep, v) });
+      events.push({ t: 'status', side: user.side });
+    }
     return;
   }
   if (e.stat) {
     const cur = who.stages[e.stat];
-    const next = Math.max(-6, Math.min(6, cur + e.stages));
+    const cap = e.limit ?? 6; // limit：這招最多只能把能力變化疊到幾段
+    const next = Math.max(Math.min(cur, -cap), Math.min(Math.max(cur, cap), cur + e.stages));
     if (next === cur) {
       events.push({ t: 'text', text: fill(TEXT.statMax, v) });
       return;
@@ -175,7 +183,7 @@ function useMove(state, user, target, moveIndex, events) {
   events.push({ t: 'lunge', side: user.side });
 
   const selfOnly = move.kind === 'status' && move.effect?.target !== 'foe';
-  if (!selfOnly) {
+  if (!selfOnly && move.accuracy !== null) {
     const hitChance = (move.accuracy / 100) * accMult(user.stages.acc);
     if (r() >= hitChance) {
       events.push({ t: 'text', text: TEXT.miss });
@@ -192,9 +200,11 @@ function useMove(state, user, target, moveIndex, events) {
   const n = lo + Math.floor(r() * (hi - lo + 1));
   let landed = 0;
   let mult = 1;
+  let dealt = 0;
   for (let i = 0; i < n && target.hp > 0; i++) {
     const d = damageOf(user, target, move, r);
     mult = d.mult;
+    dealt += Math.min(target.hp, d.dmg);
     target.hp = Math.max(0, target.hp - d.dmg);
     landed++;
     events.push({ t: 'hit', side: target.side, hp: target.hp, mult });
@@ -202,13 +212,18 @@ function useMove(state, user, target, moveIndex, events) {
   if (mult > 1) events.push({ t: 'text', text: TEXT.superEffective });
   if (mult < 1) events.push({ t: 'text', text: TEXT.notEffective });
   if (n > 1) events.push({ t: 'text', text: fill(TEXT.hits, { n: landed }) });
+  if (move.drain && dealt && user.hp < user.stats.hp) {
+    user.hp = Math.min(user.stats.hp, user.hp + Math.max(1, Math.ceil(dealt * move.drain)));
+    events.push({ t: 'hp', side: user.side, hp: user.hp });
+    events.push({ t: 'text', text: fill(TEXT.drain, vars) });
+  }
   if (move.recoil && landed) {
     user.hp = Math.max(0, user.hp - Math.max(1, Math.floor(user.stats.hp * move.recoil)));
     events.push({ t: 'hit', side: user.side, hp: user.hp, mult: 1 });
     events.push({ t: 'text', text: fill(TEXT.recoil, vars) });
   }
 
-  if (move.effect && target.hp > 0 && r() < (move.effect.chance ?? 1)) {
+  if (move.effect && (move.effect.target === 'self' || target.hp > 0) && user.hp > 0 && r() < (move.effect.chance ?? 1)) {
     applyEffect(move.effect, user, target, events, r, move.text, vars);
   }
 }
@@ -270,10 +285,17 @@ export function runTurn(state, actions) {
   // 1. 換人優先
   for (const s of [0, 1]) if (acts[s].type === 'switch') doSwitch(state, s, acts[s].slot, events);
 
-  // 2. 依速度出招（同速隨機）
+  // 2. 先比招式的先制度（priority），再比速度（同速隨機）
   const r = rnd(state);
   const [a, b] = [active(state, 0), active(state, 1)];
-  const first = a.stats.spd > b.stats.spd ? 0 : a.stats.spd < b.stats.spd ? 1 : r() < 0.5 ? 0 : 1;
+  const prio = (s) => {
+    const f = active(state, s);
+    const i = acts[s].index;
+    return acts[s].type === 'move' && f.pp[i] > 0 ? MOVES[f.moves[i]].priority ?? 0 : 0;
+  };
+  const [pa, pb] = [prio(0), prio(1)];
+  const first = pa !== pb ? (pa > pb ? 0 : 1)
+    : a.stats.spd > b.stats.spd ? 0 : a.stats.spd < b.stats.spd ? 1 : r() < 0.5 ? 0 : 1;
   for (const s of [first, 1 - first]) {
     if (acts[s].type !== 'move') continue;
     const user = active(state, s);

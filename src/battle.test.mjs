@@ -123,7 +123,9 @@ assert.notEqual(playOut(42), playOut(43), '不同種子要有不同結果');
 
 // ── PP：用一次少一次，用完會改用別招，全用完就垂死掙扎 ──
 {
-  const st = createBattle({ mode: 'wild', seed: 7, teams: [[animal('PIG', 50)], [human('THING', 50)]] });
+  const pigInd = { ...animal('PIG', 50), moves: ['BODY_SLAM', 'MUD_BATH'] };
+  const thingInd = { ...human('THING', 50), moves: ['ROCK_PUNCH', 'STONE_BODY'] };
+  const st = createBattle({ mode: 'wild', seed: 7, teams: [[pigInd], [thingInd]] });
   const pig = active(st, 0);
   runTurn(st, [{ type: 'move', index: 1 }, { type: 'move', index: 1 }]);
   assert.equal(pig.pp[1], 9, '滾泥巴 PP 10 → 9');
@@ -137,6 +139,34 @@ assert.notEqual(playOut(42), playOut(43), '不同種子要有不同結果');
   assert.ok(ev2.some((e) => e.t === 'text' && e.text.includes('垂死掙扎')), '全用完要垂死掙扎');
   assert.ok(pig.hp < hp0, '垂死掙扎有反作用力');
   assert.deepEqual(decodeAct(encodeAct({ type: 'move', index: -1 })), { type: 'move', index: -1 });
+}
+
+// ── 新招式效果 ──
+{
+  const mk = (sp, moves, lv = 30, kind = 'animal') => ({ ...createIndividual(kind, sp, lv), moves });
+  // 先制：慢的一方用「先有雞」也會先出手
+  let st = createBattle({ mode: 'wild', seed: 3, teams: [[mk('CHICKEN', ['CHICKEN_FIRST'])], [mk('ACE', ['FIRE_FIST'], 90, 'human')]] });
+  let ev = runTurn(st, [{ type: 'move', index: 0 }, { type: 'move', index: 0 }]);
+  assert.ok(ev.find((e) => e.t === 'text').text.includes('先有雞'), '先制招先出手');
+  // 吸血
+  st = createBattle({ mode: 'wild', seed: 3, teams: [[mk('COW', ['REVERSE_MILKING'])], [mk('THING', ['STONE_BODY'], 30, 'human')]] });
+  active(st, 0).hp = 10;
+  ev = runTurn(st, [{ type: 'move', index: 0 }, { type: 'move', index: 0 }]);
+  assert.ok(active(st, 0).hp > 10 && ev.some((e) => e.t === 'text' && e.text.includes('吸收')), '反向擠奶會回血');
+  // 吃飽就睡：回滿、睡兩回合
+  st = createBattle({ mode: 'wild', seed: 3, teams: [[mk('PIG', ['EAT_AND_SLEEP'])], [mk('THING', ['STONE_BODY'], 30, 'human')]] });
+  active(st, 0).hp = 5;
+  runTurn(st, [{ type: 'move', index: 0 }, { type: 'move', index: 0 }]);
+  assert.equal(active(st, 0).hp, active(st, 0).stats.hp);
+  assert.equal(active(st, 0).status, 'sleep');
+  // 必中：命中降到最低也打得到
+  st = createBattle({ mode: 'wild', seed: 3, teams: [[mk('SHEEP', ['SCAPEGOAT'])], [mk('THING', ['STONE_BODY'], 30, 'human')]] });
+  active(st, 0).stages.acc = -6;
+  for (let i = 0; i < 5; i++) assert.ok(!runTurn(st, [{ type: 'move', index: 0 }, { type: 'move', index: 0 }]).some((e) => e.text === '但是沒有打中！'));
+  // 飛沙走石最多降 2 次
+  st = createBattle({ mode: 'wild', seed: 3, teams: [[mk('PIG', ['MUD_BATH'], 50)], [mk('IRON_FAN', ['SANDSTORM'], 50, 'human')]] });
+  for (let i = 0; i < 12; i++) runTurn(st, [{ type: 'move', index: 0 }, { type: 'move', index: 0 }]);
+  assert.equal(active(st, 0).stages.acc, -2, '飛沙走石最多降 2 次');
 }
 
 // ── 升級、等級上限 ──
