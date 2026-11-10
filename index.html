@@ -112,8 +112,11 @@
       grid-template-rows: auto 1fr;
       grid-template-areas: "screen screen" "left right";
       align-content: start;
-      padding-block: 14px;
+      padding-block: 10px;
+      padding-left: max(8px, env(safe-area-inset-left, 0px));
+      padding-right: max(8px, env(safe-area-inset-right, 0px));
     }
+    .bezel { padding: 6px 6px 8px; }
     .rotate { display: block !important; }
   }
   .rotate { display: none; grid-column: 1 / -1; text-align: center; font-size: 12px; color: #77839a; }
@@ -156,7 +159,8 @@
       const portrait = innerHeight > innerWidth;
       // 橫向：高度扣掉外框（約 20px）；寬度扣掉左右兩排按鍵（各 150px）、間距與外框
       const maxH = portrait ? innerHeight * 0.5 : innerHeight - 20;
-      const maxW = portrait ? innerWidth - 64 : innerWidth - 2 * 150 - 60;
+      // 直向：寬度幾乎撐滿（扣掉兩側 8px 與外框 6px）
+      const maxW = portrait ? innerWidth - 30 : innerWidth - 2 * 150 - 60;
       let h = Math.min(maxH, (maxW * 9) / 10);
       h = Math.max(144, Math.floor(h));
       cv.style.height = h + 'px';

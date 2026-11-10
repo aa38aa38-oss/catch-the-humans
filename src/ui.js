@@ -297,7 +297,7 @@ export function chip(label, x, y, col) {
   const w = ctx.measureText(label).width + 8;
   ctx.fillStyle = col;
   ctx.beginPath();
-  ctx.roundRect(x, y, w, 18, 3);
+  ctx.roundRect(x, y - 1, w, 21, 3); // 高度留夠，字才不會被切到
   ctx.fill();
   text(label, x + 4, y + 1, '#ffffff');
   return w;

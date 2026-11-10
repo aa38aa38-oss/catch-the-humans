@@ -16,6 +16,7 @@ import { myPresence, checkOpponent, setupBattle, encodeAct, mustChoose, stepActi
 import { randomId } from './rng.js';
 import { G, save, load, hasSave, newGame, teamInds, findHuman, findInd, healAll, TEAM_HUMANS } from './save.js';
 import { explore, drawWorld, placeAt } from './overworld.js';
+import { synthesize, shipPrice, SYNTH_MATERIALS, MAX_BOOST } from './ranch.js';
 import { SIZE } from './sprites.js';
 import {
   W, H, ctx, C, ELEMENT_COL, GRADE_COL, BIG, FONT, UI, TEXT_X, sleep, ease, tween, loadFont, sfx, waiters, waitKey,
@@ -398,6 +399,7 @@ const withAnimal = (str) => fill(str, { animal: nameOf(G.animal) });
 
 async function talk(thing) {
   for (const line of thing.lines) await say(withAnimal(line));
+  if (thing.action === 'ranch') return ranchMenu();
   if (!thing.heal) return;
   show('要吃便當休息嗎？');
   const i = await menu(['吃便當', '不用了'], { x: 180, y: 96, w: 140, h: 96, rowH: 30 });
@@ -411,6 +413,83 @@ async function talk(thing) {
   sfx('heal');
   await say('大家點了素食便當。排骨的部分，誰都沒有碰。');
   await say('隊伍的體力和招式次數全部回滿了！');
+}
+
+// ───────── 人類牧場：合成強化、出貨 ─────────
+const LIST_BOX = { x: 0, y: 0, w: W, h: 192, rowH: 32, rows: 5 };
+const shortLabel = (h) => `${nameOf(h)} ${gradeOf(h.gradeId).name} Lv${h.level}`;
+
+/** 從牧場的人類裡選一隻；沒有符合的就回傳 null */
+async function pickHuman(prompt, list, label = shortLabel) {
+  if (!list.length) return null;
+  show(prompt);
+  const i = await menu(list.map(label), LIST_BOX);
+  return i < 0 ? null : list[i];
+}
+
+function removeHumans(uids) {
+  G.humans = G.humans.filter((h) => !uids.includes(h.uid));
+  G.team = G.team.filter((u) => !uids.includes(u));
+}
+
+async function ranchMenu() {
+  for (;;) {
+    scene = 'world';
+    show(`錢包：${G.money} 元`, 140);
+    const i = await menu(['合成強化', '出貨', '查看人類', '隊伍', '離開'], { x: 160, y: 56, w: 160, h: 168, rowH: 28 });
+    clearText();
+    if (i < 0 || i === 4) return;
+    if (!G.humans.length && i !== 3) {
+      await say('牧場裡還沒有人類。先去抓一些回來吧。');
+      continue;
+    }
+    if (i === 0) await synthMenu();
+    if (i === 1) await shipMenu();
+    if (i === 2) await dexScreen();
+    if (i === 3) await teamScreen();
+  }
+}
+
+async function synthMenu() {
+  await say(`合成強化：用 ${SYNTH_MATERIALS} 隻同種的人類當材料，讓主體的肉質升一級、能力變強。`);
+  const main = await pickHuman('要強化哪一隻？', G.humans.filter((h) => (h.boost ?? 0) < MAX_BOOST));
+  if (!main) return;
+  const base = HUMANS[main.species].name;
+  const pool = () => G.humans.filter((h) => h.species === main.species && h.uid !== main.uid && !mats.includes(h));
+  const mats = [];
+  if (pool().length < SYNTH_MATERIALS) {
+    await say(`材料不夠。還需要 ${SYNTH_MATERIALS - pool().length} 隻${base}。`);
+    return;
+  }
+  while (mats.length < SYNTH_MATERIALS) {
+    const m = await pickHuman(`選第 ${mats.length + 1} 隻材料（${base}）`, pool());
+    if (!m) return;
+    mats.push(m);
+  }
+  show(`用 ${mats.map(nameOf).join('和')}強化${nameOf(main)}？材料會消失。`);
+  if ((await menu(['合成', '取消'], { x: 180, y: 96, w: 140, h: 96, rowH: 30 })) !== 0) return;
+  const before = nameOf(main);
+  const { gradeUp } = synthesize(main, mats);
+  removeHumans(mats.map((m) => m.uid));
+  save();
+  sfx('caught');
+  await say(`${mats.length} 隻${base}被送進了絞肉機……`);
+  await say(`${before}吃下了營養補給品，變成了${nameOf(main)}！能力提升了！`);
+  if (gradeUp) await say(`肉質升級為「${gradeOf(main.gradeId).name}」！`);
+}
+
+async function shipMenu() {
+  const h = await pickHuman('要出貨哪一隻？', G.humans, (x) => `${shortLabel(x)} ${shipPrice(x)}元`);
+  if (!h) return;
+  const price = shipPrice(h);
+  show(`${nameOf(h)}可以賣 ${price} 元。出貨之後就回不來了。`);
+  if ((await menu(['出貨', '取消'], { x: 180, y: 96, w: 140, h: 96, rowH: 30 })) !== 0) return;
+  removeHumans([h.uid]);
+  G.money += price;
+  save();
+  sfx('ping');
+  await say(`${nameOf(h)}被裝上冷藏車，出貨了。`);
+  await say(`得到了 ${price} 元！謝謝惠顧。`);
 }
 
 async function worldMenu() {

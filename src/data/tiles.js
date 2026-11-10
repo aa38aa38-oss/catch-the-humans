@@ -21,4 +21,7 @@ export const TILES = {
   o: { name: '馬路', solid: true },
   T: { name: '列車', solid: true },
   r: { name: '鐵軌', solid: true },
+  f: { name: '柵欄', solid: true },
+  h: { name: '牧草地', solid: true },
+  K: { name: '牧場管理台', solid: true },
 };

@@ -17,13 +17,14 @@ export const G = {
   nextNo: 1,
   pos: { ...START }, // 目前在地圖上的位置
   respawn: { ...FIRST_RESPAWN }, // 最後一次休息的回復點
+  money: 0, // 出貨賺的錢
   pvp: { w: 0, l: 0, d: 0 },
 };
 
 export function newGame(animalId) {
   Object.assign(G, {
     v: SAVE_VERSION, animal: createIndividual('animal', animalId, 5), humans: [], team: [], nextNo: 1,
-    pos: { ...START }, respawn: { ...FIRST_RESPAWN }, pvp: { w: 0, l: 0, d: 0 },
+    pos: { ...START }, respawn: { ...FIRST_RESPAWN }, money: 0, pvp: { w: 0, l: 0, d: 0 },
   });
   save();
 }
@@ -80,6 +81,7 @@ export function load() {
     nextNo: d.nextNo ?? 1,
     pos: d.pos && MAPS[d.pos.map] ? d.pos : { ...START },
     respawn: d.respawn && MAPS[d.respawn.map] ? d.respawn : { ...FIRST_RESPAWN },
+    money: d.money ?? 0,
     pvp: { w: 0, l: 0, d: 0, ...d.pvp },
   });
   G.team = G.team.filter((uid) => findHuman(uid)).slice(0, TEAM_HUMANS);

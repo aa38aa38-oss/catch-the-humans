@@ -9,7 +9,7 @@ export const TPE_PLAZA = {
     '*pp""""pppppp""""pp*',
     '*pp""""pppppp""""pp*',
     '*pp""""pppppp""""pp*',
-    '*pppppppppppppppppp*',
+    '*ppppppppppppppppppp',
     '*pb""""pppppp""""bp*',
     '*pp""""pppppp""""pp*',
     '*pppppppppppppppppp*',
@@ -22,6 +22,7 @@ export const TPE_PLAZA = {
   warps: [
     { x: 9, y: 1, to: 'TPE_HALL', tx: 8, ty: 11, dir: 'UP' },
     { x: 10, y: 1, to: 'TPE_HALL', tx: 9, ty: 11, dir: 'UP' },
+    { x: 19, y: 6, to: 'RANCH', tx: 1, ty: 8, dir: 'RIGHT' },
   ],
   npcs: [
     {
@@ -33,7 +34,7 @@ export const TPE_PLAZA = {
     { x: 9, y: 0, lines: ['台北車站。每天有幾十萬個人類從這裡經過。', '對{animal}來說，這裡就是一座巨大的牧場。'] },
     { x: 10, y: 0, lines: ['台北車站。每天有幾十萬個人類從這裡經過。', '對{animal}來說，這裡就是一座巨大的牧場。'] },
   ],
-  labels: [{ x: 10, y: 0.25, text: '台北車站' }],
+  labels: [{ x: 10, y: 0.25, text: '台北車站' }, { x: 17.5, y: 5.3, text: '人類牧場→' }],
 };
 
 export const TPE_HALL = {

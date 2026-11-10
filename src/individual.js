@@ -3,6 +3,7 @@
 // 個體自己記得「目前會的招式」（最多 4 招），因為每隻學到、忘掉的招不一樣。
 import { ANIMALS, HUMANS, MOVES, speciesOf, gradeOf } from './data/index.js';
 import { randomId } from './rng.js';
+import { MAX_BOOST, boostedName } from './ranch.js';
 
 export const MOVE_SLOTS = 4;
 
@@ -32,10 +33,10 @@ export function createIndividual(kind, species, level, gradeId = 'CHOICE', extra
   return { uid: randomId(), kind, species, level, exp: 0, gradeId, moves: defaultMoves(kind, species, level), ...extra };
 }
 
-export const nameOf = (ind) => speciesOf(ind.kind, ind.species).name;
+export const nameOf = (ind) => boostedName(speciesOf(ind.kind, ind.species).name, ind.boost);
 
 /** 轉成連線傳輸用的精簡格式（不含等級：PK 統一 Lv.50） */
-export const toWire = (ind) => ({ k: ind.kind === 'animal' ? 'a' : 'h', s: ind.species, g: ind.gradeId, m: ind.moves });
+export const toWire = (ind) => ({ k: ind.kind === 'animal' ? 'a' : 'h', s: ind.species, g: ind.gradeId, m: ind.moves, b: ind.boost ?? 0 });
 
 /** 把對手傳來的資料還原成個體；資料不合法就回傳 null（對手的資料一律不信任） */
 export function fromWire(w, level, i = 0) {
@@ -47,5 +48,6 @@ export function fromWire(w, level, i = 0) {
   const moves = Array.isArray(w.m) && w.m.length >= 1 && w.m.length <= MOVE_SLOTS && w.m.every((m) => ok.has(m) && MOVES[m])
     ? [...new Set(w.m)] : null;
   if (!moves) return null;
-  return { uid: `opp-${i}`, kind, species: w.s, level, exp: 0, gradeId, moves };
+  const boost = kind === 'human' && Number.isInteger(w.b) && w.b >= 0 && w.b <= MAX_BOOST ? w.b : 0;
+  return { uid: `opp-${i}`, kind, species: w.s, level, exp: 0, gradeId, moves, boost };
 }

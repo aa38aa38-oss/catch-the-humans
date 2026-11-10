@@ -5,11 +5,13 @@
 // zoneName：走進遇敵區時跳出的提示
 // warps：踩到 (x, y) 就傳送到另一張地圖的 (tx, ty)
 // npcs：站在地圖上的人，A 鍵對話。{animal} 會換成主角的名字
-// signs：看板、櫃台等「面對它按 A」會出現的文字；heal: true 是回復點
+// signs：看板、櫃台等「面對它按 A」會出現的文字；heal: true 是回復點；action: 'ranch' 打開牧場管理
+// pen：牧場裡人類走動的範圍
 // labels：畫在地圖上的字
 import { TPE_PLAZA, TPE_HALL, TPE_PLATFORM } from './taipei.js';
+import { RANCH } from './ranch.js';
 
-export const MAPS = { TPE_PLAZA, TPE_HALL, TPE_PLATFORM };
+export const MAPS = { TPE_PLAZA, TPE_HALL, TPE_PLATFORM, RANCH };
 
 /** 新遊戲的出發點 */
 export const START = { map: 'TPE_PLAZA', x: 9, y: 9, dir: 'UP' };

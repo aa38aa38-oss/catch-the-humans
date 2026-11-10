@@ -21,5 +21,6 @@ export const DATA_VERSION = hash32(
     mechanics(HUMANS, ['element', 'base', 'moves', 'strength', 'learnset', 'evolveMoves', 'tms']),
     mechanics(MOVES, ['kind', 'element', 'pp', 'power', 'accuracy', 'hits', 'effect', 'recoil', 'drain', 'priority']),
     GRADES.map((g) => [g.id, g.statBonus]),
+    'boost:0.04x5',
   ]),
 ).toString(36);

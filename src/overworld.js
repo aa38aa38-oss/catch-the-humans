@@ -62,6 +62,9 @@ function drawTile(t, x, y, now) {
     case 'o': f('#5a5c64'); if (Math.floor(y / T) % 2 === 0) f('#e8e2d2', 4, T - 3, 14, 3); break;
     case 'T': f('#c8ccd4'); f('#e45a32', 0, 18, T, 5); f('#3c4c64', 4, 4, 10, 10); f('#3c4c64', 18, 4, 10, 10); break;
     case 'r': f('#6a6458'); f('#8a8478', 0, 6, T, 3); f('#8a8478', 0, 23, T, 3); for (let i = 2; i < T; i += 10) f('#4a3a2a', i, 4, 5, 24); break;
+    case 'f': f('#8cc060'); f('#b08858', 0, 8, T, 4); f('#b08858', 0, 20, T, 4); f('#8c6440', 4, 4, 5, 26); f('#8c6440', 22, 4, 5, 26); break;
+    case 'h': f('#9ccc6c'); f('#7cb050', 8, 12, 3, 5); f('#7cb050', 22, 22, 3, 5); break;
+    case 'K': f('#c08a50'); f('#8c5c30', 0, T - 8, T, 8); f('#f6f0e0', 5, 5, 22, 12); f('#46b45c', 9, 8, 14, 5); break;
     default: f('#000');
   }
 }
@@ -88,6 +91,7 @@ export function drawWorld(now) {
     text(l.text, lx, ly, '#f6f4ea', FONT, 'center');
   }
   for (const n of m.npcs ?? []) sprite(n.sprite, n.x * TILE - camX + 2, n.y * TILE - camY + 2, 1);
+  if (m.pen) drawPen(m.pen, camX, camY, now);
   // 主角
   const bob = OW.walking ? Math.abs(Math.sin(now / 60)) * -2 : 0;
   const dir = G.pos.dir;
@@ -110,6 +114,23 @@ export function drawWorld(now) {
     ctx.fillStyle = `rgba(0,0,0,${OW.fade})`;
     ctx.fillRect(0, 0, W, H);
   }
+}
+
+/** 牧場柵欄裡的人類：每隻輪流站一下、走到下一個隨機地點 */
+function drawPen(pen, camX, camY, now) {
+  const spot = (seed, k) => {
+    const h = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453;
+    return h - Math.floor(h);
+  };
+  G.humans.slice(0, 24).forEach((ind, i) => {
+    const t = now / 3000 + i * 0.37;
+    const k = Math.floor(t);
+    const a = t - k;
+    const walk = a < 0.5 ? 0 : (a - 0.5) * 2; // 前半段站著，後半段走
+    const p = (kk) => [pen.x0 + spot(i + 1, kk) * (pen.x1 - pen.x0), pen.y0 + spot(i + 7, kk + 0.5) * (pen.y1 - pen.y0)];
+    const [x0, y0] = p(k), [x1, y1] = p(k + 1);
+    sprite(ind.species, (x0 + (x1 - x0) * walk) * TILE - camX + 2, (y0 + (y1 - y0) * walk) * TILE - camY + 2, 1);
+  });
 }
 
 function showZoneBanner(m) {

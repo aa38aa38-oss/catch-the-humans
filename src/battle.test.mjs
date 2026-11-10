@@ -6,6 +6,8 @@ import { ANIMALS, HUMANS, MOVES, GRADES, AREAS, DATA_VERSION } from './data/inde
 import { ANIMAL_ORDER } from './data/animals.js';
 import { createIndividual, toWire, fromWire, defaultMoves, movesLearnedAt, learnableMoves } from './individual.js';
 import { MAPS, START, FIRST_RESPAWN } from './data/maps/index.js';
+import { synthesize, synthBlock, shipPrice, MAX_BOOST } from './ranch.js';
+import { makeFighter } from './battle.js';
 import { TILES } from './data/tiles.js';
 import { myPresence, checkOpponent, setupBattle, encodeAct, decodeAct, mustChoose, stepActions } from './pvp.js';
 
@@ -206,6 +208,29 @@ assert.notEqual(playOut(42), playOut(43), '不同種子要有不同結果');
   st = createBattle({ mode: 'wild', seed: 3, teams: [[mk('PIG', ['MUD_BATH'], 50)], [mk('IRON_FAN', ['SANDSTORM'], 50, 'human')]] });
   for (let i = 0; i < 12; i++) runTurn(st, [{ type: 'move', index: 0 }, { type: 'move', index: 0 }]);
   assert.equal(active(st, 0).stages.acc, -2, '飛沙走石最多降 2 次');
+}
+
+// ── 牧場：合成強化、出貨 ──
+{
+  const main = human('FIREFIGHTER', 10, 'CHOICE');
+  const before = makeFighter(main, 0, 0).stats.atk;
+  assert.ok(synthBlock(main, [human('ACE'), human('FIREFIGHTER')]), '材料要同種');
+  assert.ok(synthBlock(main, [human('FIREFIGHTER')]), '材料不夠');
+  assert.equal(synthesize(main, [human('FIREFIGHTER'), human('FIREFIGHTER')]).gradeUp, true);
+  assert.equal(main.gradeId, 'PRIME', '冷凍肉 → 溫體牛');
+  assert.equal(main.boost, 1);
+  assert.ok(makeFighter(main, 0, 0).stats.atk > before, '能力變強');
+  assert.equal(makeFighter(main, 0, 0).name, '消防隊員+1');
+  synthesize(main, [human('FIREFIGHTER'), human('FIREFIGHTER')]);
+  assert.equal(main.gradeId, 'A5');
+  assert.equal(synthesize(main, [human('FIREFIGHTER'), human('FIREFIGHTER')]).gradeUp, false, 'A5 不再升');
+  main.boost = MAX_BOOST;
+  assert.ok(synthBlock(main, [human('FIREFIGHTER'), human('FIREFIGHTER')]), '強化有上限');
+  assert.ok(shipPrice(human('ACE', 10, 'A5')) > shipPrice(human('ACE', 10, 'CHOICE')), 'A5 比較貴');
+  // 連線時強化次數也會傳過去
+  const w = toWire(main);
+  assert.equal(fromWire(w, 50).boost, MAX_BOOST);
+  assert.equal(fromWire({ ...w, b: 99 }, 50).boost, 0, '不合理的強化次數當作 0');
 }
 
 // ── 升級、等級上限 ──

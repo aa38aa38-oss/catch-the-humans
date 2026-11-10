@@ -65,7 +65,7 @@ export const GENERIC_CAUGHT = ['{human}已入欄。編號 {no}，耳標已打上
 
 // 肉質等級：類似個體值，跟 Lv. 分開。遇到時依機率隨機決定。
 export const GRADES = [
-  { id: 'CHOICE', name: '精選級', rate: 0.70, statBonus: 1.00, struggle: 1.00 },
-  { id: 'PRIME', name: '極佳級', rate: 0.25, statBonus: 1.08, struggle: 1.10 },
+  { id: 'CHOICE', name: '冷凍肉', rate: 0.70, statBonus: 1.00, struggle: 1.00 },
+  { id: 'PRIME', name: '溫體牛', rate: 0.25, statBonus: 1.08, struggle: 1.10 },
   { id: 'A5', name: 'A5和牛', rate: 0.05, statBonus: 1.18, struggle: 1.20 },
 ];

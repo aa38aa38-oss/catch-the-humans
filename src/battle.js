@@ -11,6 +11,7 @@ import { getMultiplier } from './elements.js';
 import { MOVES, speciesOf, gradeOf } from './data/index.js';
 import { TEXT } from './data/text.js';
 import { nextRandom } from './rng.js';
+import { boostMult, boostedName } from './ranch.js';
 
 export const fill = (s, vars) => s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
 export const pick = (arr, rnd = Math.random) => arr[Math.floor(rnd() * arr.length)];
@@ -35,13 +36,13 @@ export function makeFighter(ind, side, slot, levelOverride) {
   const grade = gradeOf(ind.gradeId);
   const level = levelOverride ?? ind.level;
   const moves = ind.moves?.length ? ind.moves : sp.moves;
-  const stats = calcStats(sp.base, level, ind.kind === 'animal' ? 1 : grade.statBonus);
+  const stats = calcStats(sp.base, level, ind.kind === 'animal' ? 1 : grade.statBonus * boostMult(ind.boost));
   // 野生戰鬥：沿用個體上一場剩下的體力與 PP（null = 全滿）。PK（有 levelOverride）一律全滿
   const keep = levelOverride === undefined;
   const hp = keep && ind.hp != null ? Math.max(0, Math.min(ind.hp, stats.hp)) : stats.hp;
   const pp = moves.map((id, i) => (keep && ind.pp?.length === moves.length ? Math.min(ind.pp[i], MOVES[id].pp) : MOVES[id].pp));
   return {
-    uid: ind.uid, kind: ind.kind, species: ind.species, name: sp.name, gradeId: grade.id,
+    uid: ind.uid, kind: ind.kind, species: ind.species, name: boostedName(sp.name, ind.boost), gradeId: grade.id, boost: ind.boost ?? 0,
     element: ind.kind === 'animal' ? null : sp.element,
     moves: [...moves], pp, level, stats, hp,
     stages: { atk: 0, def: 0, acc: 0 }, status: null, sleepTurns: 0, healsUsed: 0,
