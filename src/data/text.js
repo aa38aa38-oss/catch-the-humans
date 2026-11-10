@@ -3,6 +3,8 @@ export const TEXT = {
   whatToDo: '{animal}要做什麼？',
   useMove: '{user}使出了{move}！',
   miss: '但是沒有打中！',
+  recoil: '{user}受到了反作用力的傷害！',
+  noPp: '這招已經用完了！',
   superEffective: '效果絕佳！',
   notEffective: '效果不太好……',
   hits: '打中了 {n} 次！',

@@ -2,7 +2,7 @@
 // 規則在 battle.js / capture.js / pvp.js，資料在 data/，畫面工具在 ui.js。
 import {
   createBattle, runTurn, replace, chooseAiAction, active, aliveSlots, gainExp, expReward, expToNext,
-  fill, pick, tag, rollWild,
+  fill, pick, tag, rollWild, hasPp, STRUGGLE,
 } from './battle.js';
 import { createCapture, press, update } from './capture.js';
 import { ANIMALS, HUMANS, GRADES, MOVES, AREAS, gradeOf, DATA_VERSION } from './data/index.js';
@@ -515,17 +515,27 @@ async function play(events) {
 /** 選技能，回傳行動或 null（按 B 返回） */
 async function chooseMove() {
   const f = active(B.st, B.me);
-  clearText();
-  const i = await menu(f.moves.map((m) => MOVES[m].name), {
-    x: 0, y: 192, w: W, h: 96, rowH: 30,
-    extra: (idx) => {
-      const m = MOVES[f.moves[idx]];
-      const el = m.element ? `${ELEMENT_NAMES[m.element]}屬性` : '無屬性';
-      text(el, 210, 206, C.soft);
-      text(m.kind === 'attack' ? `威力 ${m.power}` : '變化技', 210, 236, C.soft);
-    },
-  });
-  return i < 0 ? null : { type: 'move', index: i };
+  if (!hasPp(f)) {
+    await say(`${f.name}的招式全部用完了！`);
+    return { type: 'move', index: STRUGGLE };
+  }
+  let start = 0;
+  for (;;) {
+    clearText();
+    const i = await menu(f.moves.map((m) => MOVES[m].name), {
+      x: 0, y: 192, w: W, h: 96, rowH: 30,
+      extra: (idx) => {
+        const m = MOVES[f.moves[idx]];
+        const el = m.element ? `${ELEMENT_NAMES[m.element]}屬性` : '無屬性';
+        text(m.kind === 'attack' ? `${el}　威力${m.power}` : `${el}　變化技`, 180, 206, C.soft);
+        text(`PP ${f.pp[idx]}/${m.pp}`, 180, 236, f.pp[idx] > 0 ? C.ink : C.hpR);
+      },
+    }, { start });
+    if (i < 0) return null;
+    if (f.pp[i] > 0) return { type: 'move', index: i };
+    start = i;
+    await say(TEXT.noPp);
+  }
 }
 
 /** 選隊伍裡的一隻。forced：一定要選（倒下補人） */

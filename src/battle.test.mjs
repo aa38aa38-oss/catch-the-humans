@@ -17,6 +17,7 @@ for (const [id, h] of Object.entries(HUMANS)) {
   nos.add(h.no);
   for (const k of ['appear', 'caught', 'escape']) assert.ok(h.lines[k]?.length, `${h.name} 缺少 ${k} 台詞`);
 }
+for (const [id, m] of Object.entries(MOVES)) assert.ok(Number.isInteger(m.pp) && (m.pp > 0 || id === 'STRUGGLE'), `技能 ${id} 要有 PP`);
 for (const a of Object.values(ANIMALS)) for (const m of a.moves) assert.ok(MOVES[m], `${a.name} 的技能 ${m} 不存在`);
 for (const [id, area] of Object.entries(AREAS)) for (const e of area.encounters) assert.ok(HUMANS[e.species], `地區 ${id} 的 ${e.species} 不存在`);
 assert.equal(GRADES.reduce((s, g) => s + g.rate, 0).toFixed(5), '1.00000', '肉質機率總和要是 100%');
@@ -110,6 +111,24 @@ assert.notEqual(playOut(42), playOut(43), '不同種子要有不同結果');
   assert.equal(JSON.stringify(logs[0]), JSON.stringify(logs[1]));
   assert.deepEqual(decodeAct(encodeAct({ type: 'switch', slot: 3 })), { type: 'switch', slot: 3 });
   console.log(`PK 模擬：${acts[0].length} 步打完，雙方戰況一致`);
+}
+
+// ── PP：用一次少一次，用完會改用別招，全用完就垂死掙扎 ──
+{
+  const st = createBattle({ mode: 'wild', seed: 7, teams: [[animal('PIG', 50)], [human('THING', 50)]] });
+  const pig = active(st, 0);
+  runTurn(st, [{ type: 'move', index: 1 }, { type: 'move', index: 1 }]);
+  assert.equal(pig.pp[1], 9, '滾泥巴 PP 10 → 9');
+  pig.pp = [0, 3];
+  const ev = runTurn(st, [{ type: 'move', index: 0 }, { type: 'move', index: 1 }]);
+  assert.equal(pig.pp[1], 2, 'PP 用完的招式會改用還有 PP 的招式');
+  assert.ok(ev.some((e) => e.t === 'text' && e.text.includes('滾泥巴')));
+  pig.pp = [0, 0];
+  const hp0 = pig.hp;
+  const ev2 = runTurn(st, [{ type: 'move', index: 0 }, { type: 'move', index: 1 }]);
+  assert.ok(ev2.some((e) => e.t === 'text' && e.text.includes('垂死掙扎')), '全用完要垂死掙扎');
+  assert.ok(pig.hp < hp0, '垂死掙扎有反作用力');
+  assert.deepEqual(decodeAct(encodeAct({ type: 'move', index: -1 })), { type: 'move', index: -1 });
 }
 
 // ── 升級 ──

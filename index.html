@@ -100,6 +100,12 @@
   @media (hover: hover) and (pointer: fine) { .keys { display: block; } }
 
   /* 直向：畫面在上，按鍵在下 */
+  /* 橫向：畫面盡量撐滿高度，拿掉下方的字樣 */
+  @media (orientation: landscape) {
+    .console { padding-block: 4px; gap: 8px; }
+    .bezel { padding: 6px; border-radius: 8px 8px 22px 8px; }
+    .brand { display: none; }
+  }
   @media (orientation: portrait) {
     .console {
       grid-template-columns: 1fr 1fr;
@@ -148,8 +154,9 @@
     const cv = document.getElementById('screen');
     function fit() {
       const portrait = innerHeight > innerWidth;
-      const maxH = portrait ? innerHeight * 0.5 : innerHeight - 70;
-      const maxW = portrait ? innerWidth - 64 : innerWidth - 2 * 170 - 64;
+      // 橫向：高度扣掉外框（約 20px）；寬度扣掉左右兩排按鍵（各 150px）、間距與外框
+      const maxH = portrait ? innerHeight * 0.5 : innerHeight - 20;
+      const maxW = portrait ? innerWidth - 64 : innerWidth - 2 * 150 - 60;
       let h = Math.min(maxH, (maxW * 9) / 10);
       h = Math.max(144, Math.floor(h));
       cv.style.height = h + 'px';

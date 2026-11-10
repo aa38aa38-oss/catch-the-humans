@@ -19,7 +19,7 @@ export const DATA_VERSION = hash32(
   JSON.stringify([
     mechanics(ANIMALS, ['base', 'moves']),
     mechanics(HUMANS, ['element', 'base', 'moves', 'strength']),
-    mechanics(MOVES, ['kind', 'element', 'power', 'accuracy', 'hits', 'effect']),
+    mechanics(MOVES, ['kind', 'element', 'pp', 'power', 'accuracy', 'hits', 'effect', 'recoil']),
     GRADES.map((g) => [g.id, g.statBonus]),
   ]),
 ).toString(36);

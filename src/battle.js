@@ -38,7 +38,7 @@ export function makeFighter(ind, side, slot, levelOverride) {
   return {
     uid: ind.uid, kind: ind.kind, species: ind.species, name: sp.name, gradeId: grade.id,
     element: ind.kind === 'animal' ? null : sp.element,
-    moves: [...sp.moves], level, stats, hp: stats.hp,
+    moves: [...sp.moves], pp: sp.moves.map((id) => MOVES[id].pp), level, stats, hp: stats.hp,
     stages: { atk: 0, def: 0, acc: 0 }, status: null, sleepTurns: 0, healsUsed: 0,
     side, slot,
   };
@@ -65,6 +65,14 @@ export const active = (state, s) => state.sides[s].team[state.sides[s].active];
 export const aliveSlots = (state, s) => state.sides[s].team.flatMap((f, i) => (f.hp > 0 ? [i] : []));
 const rnd = (state) => () => nextRandom(state);
 
+/** 招式都用完時用的特殊編號：垂死掙扎 */
+export const STRUGGLE = -1;
+export const hasPp = (f) => f.pp.some((p) => p > 0);
+const firstUsable = (f) => {
+  const i = f.pp.findIndex((p) => p > 0);
+  return i < 0 ? STRUGGLE : i;
+};
+
 const stageMult = (s) => (s >= 0 ? (2 + s) / 2 : 2 / (2 - s));
 const accMult = (s) => (s >= 0 ? (3 + s) / 3 : 3 / (3 - s));
 
@@ -82,6 +90,7 @@ export function chooseAiAction(state, s) {
   const me = active(state, s);
   const foe = active(state, 1 - s);
   const r = rnd(state);
+  if (!hasPp(me)) return { type: 'move', index: STRUGGLE };
   const options = me.moves.map((id, index) => {
     const m = MOVES[id];
     const e = m.effect;
@@ -89,6 +98,7 @@ export function chooseAiAction(state, s) {
     if (m.kind === 'attack') w = 2 + (e?.status === 'burn' && foe.status ? -1 : 0);
     if (e?.heal) w = me.hp < me.stats.hp * 0.5 && me.healsUsed < 3 ? 3 : 0; // 每場最多回血 3 次
     if (e?.stat && e.target === 'self') w = me.stages[e.stat] >= 2 ? 0 : 0.8;
+    if (me.pp[index] <= 0) w = 0;
     return { index, w };
   });
   const total = options.reduce((sum, o) => sum + o.w, 0);
@@ -97,7 +107,7 @@ export function chooseAiAction(state, s) {
     if (x < o.w) return { type: 'move', index: o.index };
     x -= o.w;
   }
-  return { type: 'move', index: 0 };
+  return { type: 'move', index: firstUsable(me) };
 }
 
 function applyEffect(e, user, target, events, r, moveText, vars) {
@@ -143,8 +153,8 @@ function applyEffect(e, user, target, events, r, moveText, vars) {
 /** 一個角色使用一個技能 */
 function useMove(state, user, target, moveIndex, events) {
   const r = rnd(state);
-  const moveId = user.moves[moveIndex] ?? user.moves[0];
-  const move = MOVES[moveId];
+  const struggle = moveIndex === STRUGGLE || !(user.pp[moveIndex] > 0);
+  const move = MOVES[struggle ? 'STRUGGLE' : user.moves[moveIndex]];
   const vars = { user: tag(user), foe: tag(target) };
 
   if (user.status === 'sleep') {
@@ -158,6 +168,8 @@ function useMove(state, user, target, moveIndex, events) {
     events.push({ t: 'status', side: user.side });
   }
 
+  if (struggle) events.push({ t: 'text', text: fill(move.text, vars) });
+  else user.pp[moveIndex]--;
   events.push({ t: 'text', text: fill(TEXT.useMove, { ...vars, move: move.name }) });
   events.push({ t: 'lunge', side: user.side });
 
@@ -189,6 +201,11 @@ function useMove(state, user, target, moveIndex, events) {
   if (mult > 1) events.push({ t: 'text', text: TEXT.superEffective });
   if (mult < 1) events.push({ t: 'text', text: TEXT.notEffective });
   if (n > 1) events.push({ t: 'text', text: fill(TEXT.hits, { n: landed }) });
+  if (move.recoil && landed) {
+    user.hp = Math.max(0, user.hp - Math.max(1, Math.floor(user.stats.hp * move.recoil)));
+    events.push({ t: 'hit', side: user.side, hp: user.hp, mult: 1 });
+    events.push({ t: 'text', text: fill(TEXT.recoil, vars) });
+  }
 
   if (move.effect && target.hp > 0 && r() < (move.effect.chance ?? 1)) {
     applyEffect(move.effect, user, target, events, r, move.text, vars);
@@ -211,9 +228,9 @@ const validSwitch = (state, s, slot) =>
 export function sanitize(state, s, a) {
   if (a?.type === 'switch' && validSwitch(state, s, a.slot)) return a;
   if (a?.type === 'forfeit') return a;
-  const n = active(state, s).moves.length;
-  if (a?.type === 'move' && Number.isInteger(a.index) && a.index >= 0 && a.index < n) return a;
-  return { type: 'move', index: 0 };
+  const f = active(state, s);
+  if (a?.type === 'move' && Number.isInteger(a.index) && f.pp[a.index] > 0) return a;
+  return { type: 'move', index: firstUsable(f) }; // 用完的招式、不存在的招式 → 第一個還能用的，全用完就垂死掙扎
 }
 
 function checkFaints(state, events) {
