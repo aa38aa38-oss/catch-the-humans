@@ -1,372 +1,121 @@
-// 遊戲主程式：畫面、操作、場景流程。規則在 battle.js / capture.js，資料在 data/。
-import { createAnimal, createWildHuman, runTurn, gainExp, expReward, expToNext, restore, fill, pick, calcStats } from './battle.js';
+// 遊戲流程：標題、選家畜、牧場、隊伍、野生戰鬥、連線 PK。
+// 規則在 battle.js / capture.js / pvp.js，資料在 data/，畫面工具在 ui.js。
+import {
+  createBattle, runTurn, replace, chooseAiAction, active, aliveSlots, gainExp, expReward, expToNext,
+  fill, pick, tag, rollWild,
+} from './battle.js';
 import { createCapture, press, update } from './capture.js';
-import { ANIMALS, ANIMAL_ORDER } from './data/animals.js';
-import { HUMANS, GRADES, GENERIC_CAUGHT } from './data/humans.js';
-import { MOVES } from './data/moves.js';
+import { ANIMALS, HUMANS, GRADES, MOVES, AREAS, gradeOf, DATA_VERSION } from './data/index.js';
+import { ANIMAL_ORDER } from './data/animals.js';
+import { GENERIC_CAUGHT } from './data/humans.js';
 import { TEXT } from './data/text.js';
 import { ELEMENT_NAMES } from './elements.js';
-import { getSprite, SIZE } from './sprites.js';
+import { createIndividual, nameOf } from './individual.js';
+import { canConnect, openRoom } from './net.js';
+import { myPresence, checkOpponent, setupBattle, encodeAct, mustChoose, stepActions } from './pvp.js';
+import { randomId } from './rng.js';
+import { G, save, load, hasSave, newGame, teamInds, findHuman, TEAM_HUMANS } from './save.js';
+import { SIZE } from './sprites.js';
+import {
+  W, H, ctx, C, ELEMENT_COL, GRADE_COL, BIG, FONT, UI, TEXT_X, sleep, ease, tween, loadFont, sfx, waiters, waitKey,
+  waitUntil, say, show, clearText, menu, box, text, chip, sprite, hpBar, drawText, drawMenu, ball,
+} from './ui.js';
 
-// ───────── 畫面 ─────────
-// 內部畫布 320×288（GB 160×144 的兩倍，讓中文字清楚），再整體放大到螢幕。
-const W = 320, H = 288;
-const cv = document.getElementById('screen');
-const ctx = cv.getContext('2d');
-const FONT = '16px "DotGothic16", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif';
-const BIG = '32px "DotGothic16", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif';
-const C = {
-  bg: '#f6f4ea', ink: '#2c2c3c', soft: '#8a8c98', box: '#fdfcf6', line: '#d8d4c4',
-  grass: '#cfdca8', grassDk: '#a9bf82', ball: '#f0648c', ballHi: '#ffd2df',
-  hpG: '#46b45c', hpY: '#e6b632', hpR: '#e04848', exp: '#4c88e0', night: '#22202c',
-  tight: '#f0648c', struggle: '#f08a2c',
-};
-const ELEMENT_COL = { FIRE: '#e45a32', EARTH: '#a8743a', WIND: '#4ea468', WATER: '#4686d8' };
-const GRADE_COL = { CHOICE: '#7a6a58', PRIME: '#3c70c8', A5: '#d09a10' };
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const ease = (k) => 1 - (1 - k) * (1 - k);
-function tween(ms, fn) {
-  return new Promise((res) => {
-    const t0 = performance.now();
-    const step = (now) => {
-      const k = Math.min(1, (now - t0) / ms);
-      fn(k);
-      k < 1 ? requestAnimationFrame(step) : res();
-    };
-    requestAnimationFrame(step);
-  });
-}
-
-// ───────── 音效（GB 方波嗶嗶聲）─────────
-let ac = null;
-let soundOn = true;
-try { soundOn = localStorage.getItem('cth-sound') !== 'off'; } catch {}
-const SFX = {
-  blip: [[880, 0.04]], move: [[660, 0.03]], hit: [[160, 0.05], [90, 0.12]], throw: [[400, 0.06], [600, 0.12]],
-  boing: [[220, 0.06], [440, 0.06], [330, 0.12]], squeeze: [[560, 0.03]], pop: [[300, 0.04], [80, 0.25]],
-  caught: [[660, 0.1], [880, 0.1], [1320, 0.25]], faint: [[400, 0.1], [300, 0.1], [200, 0.3]], heal: [[520, 0.08], [780, 0.12]],
-  rock: [[180, 0.06]],
-};
-function sfx(name) {
-  if (!soundOn) return;
-  try {
-    ac ??= new (window.AudioContext || window.webkitAudioContext)();
-    let t = ac.currentTime;
-    for (const [f, d] of SFX[name]) {
-      const o = ac.createOscillator(), g = ac.createGain();
-      o.type = 'square';
-      o.frequency.setValueAtTime(name === 'squeeze' ? f + Math.random() * 120 : f, t);
-      g.gain.setValueAtTime(0.05, t);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-      o.connect(g).connect(ac.destination);
-      o.start(t);
-      o.stop(t + d + 0.02);
-      t += d;
-    }
-  } catch {}
-}
-
-// ───────── 操作 ─────────
-const waiters = new Set();
-function emit(key) {
-  for (const w of [...waiters]) w(key);
-}
-function waitKey(keys) {
-  return new Promise((res) => {
-    const f = (k) => {
-      if (keys.includes(k)) { waiters.delete(f); res(k); }
-    };
-    waiters.add(f);
-  });
-}
-const KEYMAP = {
-  ArrowUp: 'UP', ArrowDown: 'DOWN', ArrowLeft: 'LEFT', ArrowRight: 'RIGHT',
-  w: 'UP', s: 'DOWN', a: 'LEFT', d: 'RIGHT',
-  z: 'A', Z: 'A', ' ': 'A', Enter: 'A', j: 'A',
-  x: 'B', X: 'B', Escape: 'B', Backspace: 'B', k: 'B',
-};
-window.addEventListener('keydown', (e) => {
-  const k = KEYMAP[e.key];
-  if (!k) return;
-  e.preventDefault();
-  if (!e.repeat) emit(k);
-});
-for (const btn of document.querySelectorAll('[data-key]')) {
-  btn.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    btn.classList.add('is-down');
-    emit(btn.dataset.key);
-  });
-  const up = () => btn.classList.remove('is-down');
-  btn.addEventListener('pointerup', up);
-  btn.addEventListener('pointerleave', up);
-  btn.addEventListener('pointercancel', up);
-}
-const soundBtn = document.getElementById('sound');
-const syncSound = () => {
-  soundBtn.textContent = soundOn ? '聲音 開' : '聲音 關';
-  soundBtn.setAttribute('aria-pressed', String(soundOn));
-};
-soundBtn.addEventListener('click', () => {
-  soundOn = !soundOn;
-  try { localStorage.setItem('cth-sound', soundOn ? 'on' : 'off'); } catch {}
-  syncSound();
-});
-syncSound();
-document.addEventListener('contextmenu', (e) => e.preventDefault());
-
-// ───────── 存檔（只存在這支手機的瀏覽器裡）─────────
-const G = { animal: null, caught: [], nextNo: 1 };
-function save() {
-  try {
-    const a = G.animal;
-    localStorage.setItem('cth-save-v1', JSON.stringify({ animal: { id: a.id, level: a.level, exp: a.exp }, caught: G.caught, nextNo: G.nextNo }));
-  } catch {}
-}
-function load() {
-  try {
-    const d = JSON.parse(localStorage.getItem('cth-save-v1'));
-    if (!d?.animal || !ANIMALS[d.animal.id]) return false;
-    G.animal = createAnimal(d.animal.id, d.animal.level);
-    G.animal.exp = d.animal.exp;
-    G.caught = d.caught ?? [];
-    G.nextNo = d.nextNo ?? G.caught.length + 1;
-    return true;
-  } catch {
-    return false;
-  }
-}
-const hasSave = () => {
-  try { return !!localStorage.getItem('cth-save-v1'); } catch { return false; }
-};
-
-// ───────── 文字框與選單 ─────────
-let T = null; // 目前顯示的文字 { lines, n, total, arrow, x, width }
-let M = null; // 目前的選單
-const TEXT_X = 18, TEXT_W = 284;
-
-function wrap(text, maxW) {
-  ctx.font = FONT;
-  const lines = [];
-  let cur = '';
-  for (const ch of text) {
-    if (ch === '\n') { lines.push(cur); cur = ''; continue; }
-    if (cur && ctx.measureText(cur + ch).width > maxW) { lines.push(cur); cur = ch; } else cur += ch;
-  }
-  if (cur) lines.push(cur);
-  return lines;
-}
-
-function typeOut() {
-  return new Promise((res) => {
-    let skip = false;
-    const f = (k) => { if (k === 'A' || k === 'B') skip = true; };
-    waiters.add(f);
-    const iv = setInterval(() => {
-      T.n = skip ? T.total : T.n + 1;
-      if (T.n >= T.total) { clearInterval(iv); waiters.delete(f); res(); }
-    }, 30);
-  });
-}
-
-/** 在文字框顯示一段話。wait=false 時打完字就繼續（用在選單提示） */
-async function say(text, { wait = true, width = TEXT_W } = {}) {
-  const lines = wrap(text, width);
-  for (let i = 0; i < lines.length; i += 2) {
-    const page = lines.slice(i, i + 2);
-    T = { lines: page, n: 0, total: page.join('').length, arrow: false, width };
-    await typeOut();
-    if (wait || i + 2 < lines.length) {
-      T.arrow = true;
-      await waitKey(['A', 'B']);
-      sfx('blip');
-    }
-  }
-}
-
-/** 直式選單，回傳選到的索引；按 B 取消回傳 -1 */
-function menu(items, box, { cancel = true, rows = items.length } = {}) {
-  return new Promise((res) => {
-    M = { items, index: 0, top: 0, rows, ...box };
-    const n = items.length;
-    const f = (k) => {
-      if (k === 'UP' || k === 'DOWN') {
-        M.index = (M.index + (k === 'UP' ? -1 : 1) + n) % n;
-        if (M.index < M.top) M.top = M.index;
-        if (M.index >= M.top + rows) M.top = M.index - rows + 1;
-        sfx('move');
-      } else if (k === 'A') {
-        waiters.delete(f);
-        const i = M.index;
-        M = null;
-        sfx('blip');
-        res(i);
-      } else if (k === 'B' && cancel) {
-        waiters.delete(f);
-        M = null;
-        res(-1);
-      }
-    };
-    waiters.add(f);
-  });
-}
-
-// ───────── 繪圖小工具 ─────────
-function box(x, y, w, h) {
-  ctx.fillStyle = C.box;
-  ctx.strokeStyle = C.ink;
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.roundRect(x + 2, y + 2, w - 4, h - 4, 6);
-  ctx.fill();
-  ctx.stroke();
-  ctx.strokeStyle = C.line;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.roundRect(x + 7, y + 7, w - 14, h - 14, 3);
-  ctx.stroke();
-}
-function text(s, x, y, col = C.ink, font = FONT, align = 'left') {
-  ctx.font = font;
-  ctx.fillStyle = col;
-  ctx.textAlign = align;
-  ctx.textBaseline = 'top';
-  ctx.fillText(s, x, y);
-  ctx.textAlign = 'left';
-}
-function cursor(x, y) {
-  ctx.fillStyle = C.ink;
-  ctx.beginPath();
-  ctx.moveTo(x, y + 2);
-  ctx.lineTo(x + 8, y + 8);
-  ctx.lineTo(x, y + 14);
-  ctx.fill();
-}
-function sprite(id, x, y, scale = 4, { flip = false, alpha = 1 } = {}) {
-  ctx.save();
-  ctx.imageSmoothingEnabled = false;
-  ctx.globalAlpha = alpha;
-  if (flip) {
-    ctx.translate(x + SIZE * scale, y);
-    ctx.scale(-1, 1);
-    ctx.drawImage(getSprite(id), 0, 0, SIZE * scale, SIZE * scale);
-  } else ctx.drawImage(getSprite(id), x, y, SIZE * scale, SIZE * scale);
-  ctx.restore();
-}
-function hpBar(x, y, w, hp, max) {
-  const r = Math.max(0, hp / max);
-  ctx.fillStyle = C.ink;
-  ctx.fillRect(x - 2, y - 2, w + 4, 10);
-  ctx.fillStyle = C.line;
-  ctx.fillRect(x, y, w, 6);
-  ctx.fillStyle = r > 0.5 ? C.hpG : r > 0.2 ? C.hpY : C.hpR;
-  ctx.fillRect(x, y, Math.round(w * r), 6);
-}
-function chip(label, x, y, col) {
-  ctx.font = FONT;
-  const w = ctx.measureText(label).width + 8;
-  ctx.fillStyle = col;
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, 18, 3);
-  ctx.fill();
-  text(label, x + 4, y + 1, '#ffffff');
-  return w;
-}
-function drawText() {
-  if (!T) return;
-  let left = T.n;
-  T.lines.forEach((ln, i) => {
-    const s = ln.slice(0, Math.max(0, left));
-    left -= ln.length;
-    text(s, TEXT_X, 210 + i * 32);
-  });
-  if (T.arrow && Math.floor(performance.now() / 400) % 2 === 0) {
-    ctx.fillStyle = C.ink;
-    ctx.beginPath();
-    ctx.moveTo(292, 264); ctx.lineTo(304, 264); ctx.lineTo(298, 271);
-    ctx.fill();
-  }
-}
-function drawMenu() {
-  if (!M) return;
-  box(M.x, M.y, M.w, M.h);
-  const shown = M.items.slice(M.top, M.top + M.rows);
-  shown.forEach((it, i) => {
-    const y = M.y + 14 + i * M.rowH;
-    text(it, M.x + 30, y);
-    if (M.top + i === M.index) cursor(M.x + 16, y);
-  });
-  if (M.items.length > M.rows) {
-    const total = M.items.length;
-    const h = M.h - 28;
-    ctx.fillStyle = C.line;
-    ctx.fillRect(M.x + M.w - 14, M.y + 14, 4, h);
-    ctx.fillStyle = C.ink;
-    ctx.fillRect(M.x + M.w - 14, M.y + 14 + (h * M.top) / total, 4, (h * M.rows) / total);
-  }
-  M.extra?.(M.index);
-}
-function ball(x, y, r, { alpha = 1, squash = 0 } = {}) {
-  ctx.save();
-  ctx.beginPath();
-  ctx.ellipse(x, y, r * (1 + squash), r * (1 - squash), 0, 0, Math.PI * 2);
-  ctx.globalAlpha = alpha;
-  ctx.fillStyle = C.ball;
-  ctx.fill();
-  ctx.globalAlpha = 1;
-  ctx.lineWidth = r > 14 ? 4 : 3;
-  ctx.strokeStyle = C.ink;
-  ctx.stroke();
-  ctx.globalAlpha = Math.min(1, alpha + 0.4);
-  ctx.fillStyle = C.ballHi;
-  ctx.beginPath();
-  ctx.ellipse(x - r * 0.42, y - r * 0.42, r * 0.22, r * 0.14, -0.7, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
+const pad3 = (n) => String(n).padStart(3, '0');
 
 // ───────── 場景狀態 ─────────
 let scene = 'boot';
 let B = null; // 戰鬥畫面狀態
 let SEL = 0; // 選家畜的游標
 let CARD = null; // 圖鑑卡
-let fx = { flash: 0, stripes: 0, stars: [] };
+let LOBBY = null; // 連線大廳
+const fx = { flash: 0, stripes: 0, stars: [] };
 
-const ENEMY_X = 196, ENEMY_Y = 2, PLAYER_X = 16, PLAYER_Y = 80;
+// 戰鬥畫面：自己這方在下面，對方在上面
+const POS = {
+  top: { x: 196, y: 2, clip: 112 },
+  bottom: { x: 16, y: 80, clip: 192 },
+};
+const posOf = (s) => (s === B.me ? 'bottom' : 'top');
+
+/** 把 ⟦方⟧名字 換成觀看者看到的稱呼 */
+function L(str) {
+  return str.replace(/⟦(\d)⟧/g, (m, s) => (Number(s) === B.me ? '' : B.st.mode === 'wild' ? '野生的' : '對手的'));
+}
+
+function drawFighter(s, now) {
+  const v = B.view[s];
+  const f = active(B.st, s);
+  if (!v.vis) return;
+  const p = POS[posOf(s)];
+  const wobble = s !== B.me && B.cap && !B.cap.result ? Math.sin(now / 35) * 3 * B.cap.wave * (0.4 + B.cap.struggle) : 0;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, W, p.clip);
+  ctx.clip();
+  const sc = v.scale ?? 1;
+  const sz = SIZE * 4 * sc;
+  const cx = p.x + 56 + v.x + wobble, cy = p.y + 56;
+  const flip = posOf(s) === 'top' && f.kind === 'animal';
+  if (!v.blink || Math.floor(now / 70) % 2) sprite(f.species, cx - sz / 2, cy - sz / 2 + v.drop * 112, 4 * sc, { flip });
+  ctx.restore();
+}
+
+function drawInfo(s, now) {
+  const f = active(B.st, s);
+  const v = B.view[s];
+  if (!v.info) return;
+  const statusChip = (x, y) => f.status && chip(f.status === 'sleep' ? '睡' : '燒', x, y, f.status === 'sleep' ? '#7a70b0' : '#d05030');
+  if (posOf(s) === 'top') {
+    box(6, 8, 178, 76);
+    text(f.name, 20, 20);
+    ctx.font = FONT;
+    if (f.element) chip(ELEMENT_NAMES[f.element], 22 + ctx.measureText(f.name).width, 19, ELEMENT_COL[f.element]);
+    text(`Lv.${f.level}`, 20, 42);
+    if (f.kind === 'human') {
+      const g = gradeOf(f.gradeId);
+      text(g.name, 76, 42, GRADE_COL[g.id]);
+      if (g.id === 'A5' && Math.floor(now / 300) % 2) {
+        ctx.fillStyle = '#f8d040';
+        ctx.fillRect(164, 40, 3, 9); ctx.fillRect(161, 43, 9, 3);
+      }
+    }
+    statusChip(150, 42);
+    hpBar(22, 66, 148, v.hp, f.stats.hp);
+  } else {
+    box(146, 108, 168, 82);
+    text(f.name, 160, 120);
+    text(`Lv.${f.level}`, 298, 120, C.ink, FONT, 'right');
+    ctx.font = FONT;
+    if (f.element) chip(ELEMENT_NAMES[f.element], 162 + ctx.measureText(f.name).width, 119, ELEMENT_COL[f.element]);
+    else statusChip(186, 120);
+    hpBar(160, 144, 138, v.hp, f.stats.hp);
+    text(`${Math.ceil(v.hp)}/${f.stats.hp}`, 298, 152, C.ink, FONT, 'right');
+    const ind = B.st.mode === 'wild' && (f.uid === G.animal.uid ? G.animal : findHuman(f.uid));
+    if (ind) {
+      ctx.fillStyle = C.line;
+      ctx.fillRect(160, 174, 138, 3);
+      ctx.fillStyle = C.exp;
+      ctx.fillRect(160, 174, Math.round((138 * ind.exp) / expToNext(ind.level)), 3);
+    }
+  }
+}
 
 function drawBattle(now) {
-  const b = B;
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, W, H);
-  // 草地
   ctx.fillStyle = C.grass;
   ctx.beginPath(); ctx.ellipse(252, 110, 62, 12, 0, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.ellipse(72, 186, 70, 12, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = C.grassDk;
   for (const [x, y] of [[214, 106], [276, 112], [240, 116], [40, 182], [96, 190], [70, 180]]) ctx.fillRect(x, y, 6, 2);
 
-  const shakeX = b.shake ? Math.round(Math.sin(now / 20) * b.shake) : 0;
   ctx.save();
-  ctx.translate(shakeX, 0);
-
-  // 野生人類
-  const e = b.enemy;
-  const wobble = b.cap && !b.cap.result ? Math.sin(now / 35) * 3 * b.cap.wave * (0.4 + b.cap.struggle) : 0;
-  if (b.eVis) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, W, 112);
-    ctx.clip();
-    const sc = b.eScale ?? 1;
-    const sz = SIZE * 4 * sc;
-    const cx = ENEMY_X + 56 + b.eX + wobble, cy = ENEMY_Y + 56;
-    if (!b.eBlink || Math.floor(now / 70) % 2) sprite(e.id, cx - sz / 2, cy - sz / 2 + b.eDrop * 112, 4 * sc);
-    ctx.restore();
-  }
-  // 寶貝球
-  if (b.ball) {
-    const k = b.ball;
+  ctx.translate(B.shake ? Math.round(Math.sin(now / 20) * B.shake) : 0, 0);
+  const foe = 1 - B.me;
+  drawFighter(foe, now);
+  if (B.ball) {
+    const k = B.ball;
     if (k.mode === 'burst') {
       for (let i = 0; i < 10; i++) {
         const a = (i / 10) * Math.PI * 2;
@@ -377,7 +126,9 @@ function drawBattle(now) {
         ctx.globalAlpha = 1;
       }
     } else {
-      const squash = b.cap && !b.cap.result ? 0.07 * Math.sin(now / 45) * b.cap.wave + 0.06 * (b.squeeze ?? 0) : k.squash ?? 0;
+      const capping = B.cap && !B.cap.result;
+      const wobble = capping ? Math.sin(now / 35) * 3 * B.cap.wave * (0.4 + B.cap.struggle) : 0;
+      const squash = capping ? 0.07 * Math.sin(now / 45) * B.cap.wave + 0.06 * (B.squeeze ?? 0) : k.squash ?? 0;
       ball(k.x + (k.mode === 'wrap' ? wobble : 0), k.y, k.r, { alpha: k.mode === 'wrap' ? 0.42 : 1, squash });
     }
   }
@@ -386,52 +137,24 @@ function drawBattle(now) {
     ctx.fillRect(s.x - 2, s.y - 6, 4, 12);
     ctx.fillRect(s.x - 6, s.y - 2, 12, 4);
   }
-
-  // 家畜
-  if (b.pVis && (!b.pBlink || Math.floor(now / 70) % 2)) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, W, 192);
-    ctx.clip();
-    sprite(b.player.id, PLAYER_X + b.pX, PLAYER_Y + b.pDrop * 112, 4);
-    ctx.restore();
-  }
+  drawFighter(B.me, now);
   ctx.restore();
-
-  // 野生人類資訊
-  if (b.showE) {
-    box(6, 8, 178, 76);
-    text(e.name, 20, 20);
-    ctx.font = FONT;
-    let x = 22 + ctx.measureText(e.name).width;
-    chip(ELEMENT_NAMES[e.element], x, 19, ELEMENT_COL[e.element]);
-    text(`Lv.${e.level}`, 20, 42);
-    text(e.grade.name, 76, 42, GRADE_COL[e.grade.id]);
-    if (e.grade.id === 'A5' && Math.floor(now / 300) % 2) {
-      ctx.fillStyle = '#f8d040';
-      ctx.fillRect(164, 40, 3, 9); ctx.fillRect(161, 43, 9, 3);
-    }
-    if (e.status) chip(e.status === 'sleep' ? '睡' : '燒', 150, 42, e.status === 'sleep' ? '#7a70b0' : '#d05030');
-    hpBar(22, 66, 148, b.eHp, e.stats.hp);
-  }
-  // 家畜資訊
-  if (b.showP) {
-    const p = b.player;
-    box(146, 108, 168, 82);
-    text(p.name, 160, 120);
-    text(`Lv.${p.level}`, 298, 120, C.ink, FONT, 'right');
-    if (p.status) chip(p.status === 'sleep' ? '睡' : '燒', 186, 120, p.status === 'sleep' ? '#7a70b0' : '#d05030');
-    hpBar(160, 144, 138, b.pHp, p.stats.hp);
-    text(`${Math.ceil(b.pHp)}/${p.stats.hp}`, 298, 152, C.ink, FONT, 'right');
-    ctx.fillStyle = C.line;
-    ctx.fillRect(160, 174, 138, 3);
-    ctx.fillStyle = C.exp;
-    ctx.fillRect(160, 174, Math.round((138 * p.exp) / expToNext(p.level)), 3);
+  drawInfo(foe, now);
+  drawInfo(B.me, now);
+  // 隊伍剩幾隻（小圓點）
+  for (const s of [0, 1]) {
+    const team = B.st.sides[s].team;
+    const top = posOf(s) === 'top';
+    team.forEach((f, i) => {
+      ctx.fillStyle = f.hp > 0 ? C.ball : C.line;
+      const x = top ? 20 + i * 12 : 160 + i * 12;
+      const y = top ? 88 : 98;
+      if (B.view[s].info) ctx.fillRect(x, y, 8, 8);
+    });
   }
 
-  // 文字框
   box(0, 192, W, 96);
-  if (b.cap) {
+  if (B.cap) {
     text('連打 A！把球收緊！', TEXT_X, 206);
     const bar = (label, y, v, col) => {
       text(label, TEXT_X, y);
@@ -442,12 +165,11 @@ function drawBattle(now) {
       ctx.fillStyle = col;
       ctx.fillRect(68, y + 4, Math.round(232 * v), 10);
     };
-    bar('收緊', 232, b.cap.tight, C.tight);
-    bar('掙扎', 256, b.cap.struggle, C.struggle);
+    bar('收緊', 232, B.cap.tight, C.tight);
+    bar('掙扎', 256, B.cap.struggle, C.struggle);
   } else drawText();
   drawMenu();
 
-  // 開場轉場：橫條閃爍
   if (fx.stripes > 0) {
     ctx.fillStyle = C.night;
     for (let y = 0; y < H; y += 24) {
@@ -465,7 +187,6 @@ function drawTitle(now) {
   ctx.fillRect(0, 200, W, 88);
   ctx.fillStyle = C.grassDk;
   for (let x = 6; x < W; x += 22) ctx.fillRect(x, 206 + ((x * 7) % 11), 6, 2);
-  // 被包在球裡的人類，輪流登場
   const ids = Object.keys(HUMANS);
   const id = ids[Math.floor(now / 2200) % ids.length];
   const bob = Math.sin(now / 300) * 3;
@@ -474,7 +195,7 @@ function drawTitle(now) {
   text('人類捕捉計畫', 160, 14, C.ink, BIG, 'center');
   text('CATCH  THE  HUMANS', 160, 50, C.ball, FONT, 'center');
   ANIMAL_ORDER.forEach((a, i) => sprite(a, 14 + i * 76, 196 + (i % 2) * 6, 2));
-  if (!M && Math.floor(now / 500) % 2) text('按 A 開始', 160, 172, C.ink, FONT, 'center');
+  if (!UI.menu && Math.floor(now / 500) % 2) text('按 A 開始', 160, 172, C.ink, FONT, 'center');
   drawMenu();
 }
 
@@ -493,11 +214,9 @@ function drawSelect(now) {
     sprite(id, x + 9, y + 9 + hop, 2);
   });
   const a = ANIMALS[ANIMAL_ORDER[SEL]];
-  const st = calcStats(a.base, 5);
   box(0, 114, W, 174);
   text(`${a.name}　${a.desc}`, 18, 128);
-  const rows = [['體力', a.base.hp, st.hp], ['攻擊', a.base.atk, st.atk], ['防禦', a.base.def, st.def], ['速度', a.base.spd, st.spd]];
-  rows.forEach(([n, base], i) => {
+  [['體力', a.base.hp], ['攻擊', a.base.atk], ['防禦', a.base.def], ['速度', a.base.spd]].forEach(([n, base], i) => {
     const y = 154 + i * 22;
     text(n, 18, y);
     ctx.fillStyle = C.line;
@@ -514,7 +233,7 @@ function drawSelect(now) {
 function drawStory() {
   ctx.fillStyle = C.night;
   ctx.fillRect(0, 0, W, H);
-  if (G.animal) sprite(G.animal.id, 104, 50, 4);
+  if (G.animal) sprite(G.animal.species, 104, 50, 4);
   box(0, 192, W, 96);
   drawText();
 }
@@ -524,24 +243,24 @@ function drawRanch(now) {
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = C.grass;
   ctx.fillRect(0, 92, W, 100);
-  // 柵欄
   ctx.fillStyle = '#b08858';
   ctx.fillRect(0, 112, W, 5);
   ctx.fillRect(0, 130, W, 5);
   for (let x = 6; x < W; x += 28) ctx.fillRect(x, 102, 6, 40);
-  text('人類牧場', 18, 14, C.ink, FONT);
-  text(`已收服 ${G.caught.length} 隻`, 302, 14, C.soft, FONT, 'right');
+  text('人類牧場', 18, 14);
+  text(`已收服 ${G.humans.length} 隻`, 302, 14, C.soft, FONT, 'right');
   const a = G.animal;
-  text(`${a.name}　Lv.${a.level}`, 18, 40);
+  text(`${nameOf(a)}　Lv.${a.level}`, 18, 40);
   ctx.fillStyle = C.line;
   ctx.fillRect(18, 64, 120, 3);
   ctx.fillStyle = C.exp;
   ctx.fillRect(18, 64, Math.round((120 * a.exp) / expToNext(a.level)), 3);
-  sprite(a.id, 196, 34, 3);
-  // 牧場裡最近抓到的人類
-  G.caught.slice(-5).forEach((c, i) => {
+  const { w, l } = G.pvp;
+  if (w + l) text(`PK ${w}勝${l}敗`, 18, 72, C.soft);
+  sprite(a.species, 196, 34, 3);
+  teamInds().slice(1).forEach((h, i) => {
     const bob = Math.sin(now / 260 + i) * 2;
-    sprite(c.id, 8 + i * 62, 136 + bob, 2);
+    sprite(h.species, 8 + i * 62, 136 + bob, 2);
   });
   box(0, 192, W, 96);
   drawText();
@@ -550,34 +269,59 @@ function drawRanch(now) {
 
 function drawCard() {
   const c = CARD;
-  const h = HUMANS[c.id];
-  const grade = GRADES.find((g) => g.id === c.gradeId);
+  const h = HUMANS[c.species];
+  const grade = gradeOf(c.gradeId);
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, W, H);
   box(0, 0, W, 192);
-  text(`人類圖鑑　No.${String(h.no).padStart(3, '0')}`, 18, 16, C.soft);
+  text(`人類圖鑑　No.${pad3(h.no)}`, 18, 16, C.soft);
   ctx.fillStyle = C.grass;
   ctx.beginPath(); ctx.roundRect(14, 40, 120, 120, 6); ctx.fill();
-  sprite(c.id, 18, 44, 4);
+  sprite(c.species, 18, 44, 4);
   text(h.name, 148, 44);
   chip(`${ELEMENT_NAMES[h.element]}屬性`, 148, 70, ELEMENT_COL[h.element]);
   text('肉質', 148, 98, C.soft);
   text(grade.name, 196, 98, GRADE_COL[grade.id]);
   text(`Lv.${c.level}`, 148, 122);
   text(`出處：${h.origin}`, 148, 146, C.soft);
-  if (c.no) text(`耳標 ${String(c.no).padStart(3, '0')}`, 302, 16, C.ink, FONT, 'right');
+  if (c.no) text(`耳標 ${pad3(c.no)}`, 302, 16, C.ink, FONT, 'right');
   box(0, 192, W, 96);
   drawText();
 }
 
+function drawLobby(now) {
+  ctx.fillStyle = C.night;
+  ctx.fillRect(0, 0, W, H);
+  text('連線對戰', 18, 12, '#f6f4ea');
+  text('Lv.50 公平賽', 302, 12, C.soft, FONT, 'right');
+  const L0 = LOBBY;
+  if (L0) {
+    text('房號', 160, 40, C.soft, FONT, 'center');
+    L0.digits.forEach((d, i) => {
+      const x = 96 + i * 34;
+      ctx.fillStyle = '#f6f4ea';
+      ctx.beginPath(); ctx.roundRect(x, 62, 28, 40, 4); ctx.fill();
+      text(String(d), x + 14, 66, C.ink, BIG, 'center');
+      if (L0.editing && i === L0.pos) {
+        ctx.fillStyle = C.ball;
+        ctx.fillRect(x, 106, 28, 4);
+        if (Math.floor(now / 400) % 2) {
+          text('▲', x + 14, 44, C.ball, FONT, 'center');
+          text('▼', x + 14, 112, C.ball, FONT, 'center');
+        }
+      }
+    });
+    teamInds().forEach((ind, i) => sprite(ind.species, 22 + i * 58, 134, 2));
+  }
+  box(0, 192, W, 96);
+  drawText();
+  drawMenu();
+}
+
 function render(now) {
   ctx.imageSmoothingEnabled = false;
-  if (scene === 'title') drawTitle(now);
-  else if (scene === 'select') drawSelect(now);
-  else if (scene === 'story') drawStory(now);
-  else if (scene === 'battle') drawBattle(now);
-  else if (scene === 'ranch') drawRanch(now);
-  else if (scene === 'card') drawCard(now);
+  const draw = { title: drawTitle, select: drawSelect, story: drawStory, battle: drawBattle, ranch: drawRanch, card: drawCard, lobby: drawLobby }[scene];
+  draw?.(now);
   if (fx.flash > 0) {
     ctx.fillStyle = `rgba(255,255,255,${fx.flash})`;
     ctx.fillRect(0, 0, W, H);
@@ -585,18 +329,15 @@ function render(now) {
   requestAnimationFrame(render);
 }
 
-// ───────── 流程 ─────────
+// ───────── 標題與開場 ─────────
 async function titleScreen() {
   scene = 'title';
-  T = null;
+  clearText();
+  await waitKey(['A']);
+  sfx('blip');
   if (hasSave()) {
-    await waitKey(['A']);
-    sfx('blip');
     const i = await menu(['繼續', '重新開始'], { x: 96, y: 128, w: 128, h: 72, rowH: 26 }, { cancel: false });
     if (i === 0 && load()) return ranch();
-  } else {
-    await waitKey(['A']);
-    sfx('blip');
   }
   return selectAnimal();
 }
@@ -615,150 +356,281 @@ async function selectAnimal() {
     SEL = (SEL + (k === 'LEFT' || k === 'UP' ? -1 : 1) + 4) % 4;
     sfx('move');
   }
-  G.animal = createAnimal(ANIMAL_ORDER[SEL], 5);
-  G.caught = [];
-  G.nextNo = 1;
-  save();
+  newGame(ANIMAL_ORDER[SEL]);
   scene = 'story';
-  const v = { animal: G.animal.name };
+  const v = { animal: nameOf(G.animal) };
   await say(fill('{animal}被人類養了一輩子。每天吃飽、睡飽，等著被吃。', v));
   await say('直到今天早上，牠聽見主人在講電話：「明天就送去。」');
   await say(fill('{animal}決定，換一下立場。', v));
   await say('這一次，輪到人類被圈養。');
-  return battle();
+  return wildBattle();
 }
 
+// ───────── 牧場、隊伍、圖鑑 ─────────
 async function ranch() {
   scene = 'ranch';
-  T = null;
+  clearText();
   for (;;) {
-    await say('要做什麼？', { wait: false, width: 150 });
-    const i = await menu(['出發狩獵', '查看牧場', '回標題'], { x: 170, y: 192, w: 150, h: 96, rowH: 26 }, { cancel: false });
-    if (i === 0) return battle();
-    if (i === 1) {
-      if (!G.caught.length) {
-        await say('牧場裡還是空的。快去抓第一隻人類吧。');
-        continue;
-      }
-      const items = G.caught.map((c) => `${String(c.no).padStart(3, '0')} ${HUMANS[c.id].name}　${GRADES.find((g) => g.id === c.gradeId).name}`);
-      T = null;
-      const j = await menu(items, { x: 0, y: 0, w: W, h: 192, rowH: 32, rows: 5 });
-      if (j >= 0) await showCard(G.caught[j]);
-      scene = 'ranch';
-    }
-    if (i === 2) return titleScreen();
+    scene = 'ranch';
+    show('要做什麼？', 140);
+    const i = await menu(['出發狩獵', '隊伍', '人類圖鑑', '連線對戰', '回標題'], { x: 160, y: 120, w: 160, h: 168, rowH: 28 }, { cancel: false });
+    clearText();
+    if (i === 0) return wildBattle();
+    if (i === 1) await teamScreen();
+    if (i === 2) await dexScreen();
+    if (i === 3) await pvpLobby();
+    if (i === 4) return titleScreen();
   }
 }
 
-async function showCard(entry, line) {
-  CARD = entry;
-  scene = 'card';
-  if (line) await say(line);
-  await say(HUMANS[entry.id].dex);
+const humanLabel = (h) => `${pad3(h.no)} ${nameOf(h)} Lv${h.level}`;
+
+async function teamScreen() {
+  for (;;) {
+    scene = 'ranch';
+    const slots = [`${nameOf(G.animal)} Lv${G.animal.level}（固定）`];
+    for (let i = 0; i < TEAM_HUMANS; i++) {
+      const h = findHuman(G.team[i]);
+      slots.push(h ? humanLabel(h) : '（空位）');
+    }
+    show('選擇要更換的位置。');
+    const i = await menu(slots, { x: 0, y: 0, w: W, h: 192, rowH: 32 });
+    if (i < 0) return;
+    if (i === 0) {
+      await say('家畜是你的代表，一定要在隊上。');
+      continue;
+    }
+    const current = G.team[i - 1];
+    const pool = G.humans.filter((h) => !G.team.includes(h.uid));
+    const options = pool.map(humanLabel);
+    if (current) options.unshift('移出隊伍');
+    if (!options.length) {
+      await say('牧場裡沒有其他人類了。');
+      continue;
+    }
+    show('要換誰？');
+    const j = await menu(options, { x: 0, y: 0, w: W, h: 192, rowH: 32, rows: 5 });
+    if (j < 0) continue;
+    if (current && j === 0) G.team.splice(i - 1, 1);
+    else {
+      const pickH = pool[current ? j - 1 : j];
+      if (current) G.team[i - 1] = pickH.uid;
+      else G.team.push(pickH.uid);
+    }
+    save();
+  }
 }
 
+async function dexScreen() {
+  if (!G.humans.length) {
+    await say('牧場裡還是空的。快去抓第一隻人類吧。');
+    return;
+  }
+  for (;;) {
+    scene = 'ranch';
+    show('要看哪一隻？');
+    const items = G.humans.map((h) => `${pad3(h.no)} ${nameOf(h)}　${gradeOf(h.gradeId).name}`);
+    const j = await menu(items, { x: 0, y: 0, w: W, h: 192, rowH: 32, rows: 5 });
+    if (j < 0) return;
+    await showCard(G.humans[j]);
+  }
+}
+
+async function showCard(ind, line) {
+  CARD = ind;
+  scene = 'card';
+  if (line) await say(line);
+  await say(HUMANS[ind.species].dex);
+}
+
+// ───────── 戰鬥共用 ─────────
+function startBattleView(st, me) {
+  B = {
+    st, me,
+    view: [0, 1].map((s) => ({ hp: active(st, s).hp, x: (s === me ? 1 : -1) * 260, drop: 0, vis: true, info: false, blink: false })),
+    ball: null, cap: null, shake: 0,
+  };
+  clearText();
+  scene = 'battle';
+}
+
+async function battleIntro() {
+  for (let i = 0; i < 3; i++) await tween(110, (k) => (fx.flash = 1 - k));
+  await tween(500, (k) => (fx.stripes = k));
+  await tween(400, (k) => (fx.stripes = 1 - k));
+  fx.stripes = 0;
+  await tween(700, (k) => B.view.forEach((v, s) => (v.x = (s === B.me ? 1 : -1) * 260 * (1 - ease(k)))));
+}
+
+async function slide(s, out) {
+  const dir = posOf(s) === 'bottom' ? -1 : 1;
+  await tween(350, (k) => (B.view[s].x = dir * 260 * (out ? ease(k) : 1 - ease(k))));
+}
+
+/** 播放戰鬥事件 */
 async function play(events) {
   for (const e of events) {
-    const isE = e.side === 'enemy';
-    if (e.t === 'text') await say(e.text);
+    const s = e.side;
+    const v = B.view[s];
+    if (e.t === 'text') await say(L(e.text));
     else if (e.t === 'lunge') {
-      const dir = isE ? -1 : 1;
-      await tween(180, (k) => {
-        const v = Math.sin(k * Math.PI) * 14 * dir;
-        isE ? (B.eX = v) : (B.pX = v);
-      });
+      const dir = posOf(s) === 'bottom' ? 1 : -1;
+      await tween(180, (k) => (v.x = Math.sin(k * Math.PI) * 14 * dir));
     } else if (e.t === 'hit' || e.t === 'hp') {
       if (e.t === 'hit') {
         sfx('hit');
         if (e.mult > 1) B.shake = 4;
-        isE ? (B.eBlink = true) : (B.pBlink = true);
+        v.blink = true;
         await sleep(360);
-        B.eBlink = B.pBlink = false;
+        v.blink = false;
         B.shake = 0;
       } else sfx('heal');
-      const from = isE ? B.eHp : B.pHp;
-      await tween(Math.min(700, 120 + Math.abs(from - e.hp) * 30), (k) => {
-        const v = from + (e.hp - from) * k;
-        isE ? (B.eHp = v) : (B.pHp = v);
-      });
+      const from = v.hp;
+      await tween(Math.min(700, 120 + Math.abs(from - e.hp) * 6), (k) => (v.hp = from + (e.hp - from) * k));
     } else if (e.t === 'faint') {
       sfx('faint');
-      await tween(400, (k) => (isE ? (B.eDrop = k) : (B.pDrop = k)));
+      await tween(400, (k) => (v.drop = k));
+      await say(L(`${tag(active(B.st, s))}倒下了！`));
+    } else if (e.t === 'switch') {
+      const mine = s === B.me;
+      const out = B.st.sides[s].team[e.from];
+      if (out.hp > 0) {
+        await say(mine ? `回來吧，${out.name}！` : `對手收回了${out.name}。`);
+        await slide(s, true);
+      }
+      const f = active(B.st, s);
+      v.hp = f.hp;
+      v.drop = 0;
+      v.x = (posOf(s) === 'bottom' ? -1 : 1) * 260;
+      B.onSwitch?.(s, f);
+      await say(mine ? `去吧，${f.name}！` : `對手派出了${f.name}！`, { wait: false });
+      await slide(s, false);
+      await sleep(250);
+    } else if (e.t === 'forfeit') {
+      await say(s === B.me ? '你投降了。' : '對手投降了。');
     }
   }
 }
 
-async function battle() {
-  const p = G.animal;
-  const e = createWildHuman(p.level);
-  B = { player: p, enemy: e, pHp: p.hp, eHp: e.hp, eX: -260, pX: 260, eDrop: 0, pDrop: 0, eVis: true, pVis: true, showE: false, showP: false, ball: null, cap: null };
-  T = null;
-  scene = 'battle';
-  for (let i = 0; i < 3; i++) {
-    await tween(110, (k) => (fx.flash = 1 - k));
-  }
-  await tween(500, (k) => (fx.stripes = k));
-  await tween(400, (k) => (fx.stripes = 1 - k));
-  fx.stripes = 0;
-  await tween(700, (k) => {
-    B.eX = -260 * (1 - ease(k));
-    B.pX = 260 * (1 - ease(k));
+/** 選技能，回傳行動或 null（按 B 返回） */
+async function chooseMove() {
+  const f = active(B.st, B.me);
+  clearText();
+  const i = await menu(f.moves.map((m) => MOVES[m].name), {
+    x: 0, y: 192, w: W, h: 96, rowH: 30,
+    extra: (idx) => {
+      const m = MOVES[f.moves[idx]];
+      const el = m.element ? `${ELEMENT_NAMES[m.element]}屬性` : '無屬性';
+      text(el, 210, 206, C.soft);
+      text(m.kind === 'attack' ? `威力 ${m.power}` : '變化技', 210, 236, C.soft);
+    },
   });
-  B.showE = true;
-  const v = { animal: p.name, human: e.name };
-  await say(fill(pick(HUMANS[e.id].lines.appear), v));
-  B.showP = true;
+  return i < 0 ? null : { type: 'move', index: i };
+}
+
+/** 選隊伍裡的一隻。forced：一定要選（倒下補人） */
+async function chooseMember({ forced = false } = {}) {
+  const side = B.st.sides[B.me];
+  for (;;) {
+    const items = side.team.map((f, i) =>
+      `${f.name} Lv${f.level}　${f.hp > 0 ? `${f.hp}/${f.stats.hp}` : '倒下'}${i === side.active ? '　出場中' : ''}`);
+    show(forced ? '要派誰上場？' : '要換誰上場？');
+    const start = Math.max(0, side.team.findIndex((f, j) => f.hp > 0 && j !== side.active));
+    const i = await menu(items, { x: 0, y: 0, w: W, h: 192, rowH: 34 }, { cancel: !forced, start });
+    if (i < 0) return null;
+    if (side.team[i].hp <= 0) await say(`${side.team[i].name}已經沒有力氣戰鬥了。`);
+    else if (i === side.active) await say(`${side.team[i].name}已經在場上了。`);
+    else return i;
+  }
+}
+
+// ───────── 野生戰鬥 ─────────
+async function wildBattle() {
+  const w = rollWild(AREAS[G.area], Math.random, GRADES);
+  const wild = createIndividual('human', w.species, w.level, w.gradeId);
+  const st = createBattle({ mode: 'wild', seed: (Math.random() * 2 ** 32) >>> 0, teams: [teamInds(), [wild]] });
+  startBattleView(st, 0);
+  const joined = new Set([active(st, 0).uid]);
+  B.onSwitch = (s, f) => s === 0 && joined.add(f.uid);
+  await battleIntro();
+  B.view[1].info = true;
+  const e = active(st, 1);
+  const v = { animal: nameOf(G.animal), human: e.name };
+  await say(fill(pick(HUMANS[e.species].lines.appear), v));
+  B.view[0].info = true;
 
   for (;;) {
-    await say(fill(TEXT.whatToDo, v), { wait: false, width: 150 });
-    const act = await menu(['技能', '寶貝球', '逃跑'], { x: 176, y: 192, w: 144, h: 96, rowH: 26 }, { cancel: false });
-    if (act === 0) {
-      T = null;
-      const mi = await menu(p.moves.map((m) => MOVES[m].name), {
-        x: 0, y: 192, w: W, h: 96, rowH: 30,
-        extra: (i) => {
-          const m = MOVES[p.moves[i]];
-          text(m.kind === 'attack' ? `威力 ${m.power}` : '變化技', 210, 206, C.soft);
-          text(`命中 ${m.accuracy}`, 210, 236, C.soft);
-        },
-      });
-      if (mi < 0) continue;
-      const { events, winner } = runTurn(p, e, p.moves[mi]);
-      await play(events);
-      if (winner === 'player') {
-        for (const s of TEXT.humanFainted) await say(fill(s, v));
-        return afterBattle(expReward(e));
-      }
-      if (winner === 'enemy') {
-        for (const s of TEXT.playerFainted) await say(fill(s, v));
-        return afterBattle(0);
-      }
-    } else if (act === 1) {
+    const me = active(st, 0);
+    show(`${me.name}\n要做什麼？`, 140);
+    const act = await menu(['技能', '換人', '寶貝球', '逃跑'], { x: 152, y: 192, w: 168, h: 96, rowH: 34, cols: 2, colW: 74 }, { cancel: false });
+    let action = null;
+    if (act === 0) action = await chooseMove();
+    else if (act === 1) {
+      const slot = await chooseMember();
+      if (slot !== null) action = { type: 'switch', slot };
+    } else if (act === 2) {
       const r = await capture(e);
       if (r === 'caught') {
-        const entry = { id: e.id, level: e.level, gradeId: e.grade.id, no: G.nextNo++ };
-        G.caught.push(entry);
-        const lines = [...HUMANS[e.id].lines.caught, ...GENERIC_CAUGHT];
-        const line = fill(pick(lines), { ...v, grade: e.grade.name, no: String(entry.no).padStart(3, '0') });
-        await showCard(entry, line);
+        const ind = createIndividual('human', e.species, e.level, e.gradeId, { no: G.nextNo++ });
+        G.humans.push(ind);
+        const lines = [...HUMANS[e.species].lines.caught, ...GENERIC_CAUGHT];
+        await showCard(ind, fill(pick(lines), { ...v, grade: gradeOf(e.gradeId).name, no: pad3(ind.no) }));
+        if (G.team.length < TEAM_HUMANS) {
+          G.team.push(ind.uid);
+          await say(`${e.name}加入了隊伍！`);
+        } else await say(`隊伍滿了。${e.name}被送進牧場。`);
         scene = 'battle';
-        return afterBattle(expReward(e));
+        return afterWild(joined, expReward(e));
       }
-      await say(fill(pick(HUMANS[e.id].lines.escape), v));
-      return afterBattle(0);
+      await say(fill(pick(HUMANS[e.species].lines.escape), v));
+      return afterWild(joined, 0);
     } else {
       await say(TEXT.run);
-      return afterBattle(0);
+      return afterWild(joined, 0);
+    }
+    if (!action) continue;
+
+    await play(runTurn(st, [action, chooseAiAction(st, 1)]));
+    if (st.winner === 0) {
+      for (const s of TEXT.humanFainted.slice(1)) await say(fill(s, v));
+      return afterWild(joined, expReward(e));
+    }
+    if (st.winner === 1) {
+      for (const s of TEXT.playerFainted.slice(1)) await say(fill(s, v));
+      return afterWild(joined, 0);
+    }
+    if (st.need.includes(0)) {
+      const slot = await chooseMember({ forced: true });
+      await play(replace(st, [slot, null]));
     }
   }
+}
+
+/** 野生戰鬥結束：沒倒下的參戰者都拿經驗值，然後全隊回滿血 */
+async function afterWild(joined, exp) {
+  scene = 'battle';
+  if (exp > 0) {
+    for (const f of B.st.sides[0].team) {
+      if (!joined.has(f.uid) || f.hp <= 0) continue;
+      const ind = f.uid === G.animal.uid ? G.animal : findHuman(f.uid);
+      if (!ind) continue;
+      await say(fill(TEXT.expGain, { animal: f.name, exp }));
+      for (const lv of gainExp(ind, exp)) {
+        sfx('caught');
+        await say(fill(TEXT.levelUp, { animal: f.name, level: lv }));
+      }
+    }
+  }
+  save();
+  return ranch();
 }
 
 async function capture(e) {
-  const v = { animal: G.animal.name };
-  await say(fill(TEXT.throwBall, v), { wait: false });
+  await say(fill(TEXT.throwBall, { animal: active(B.st, 0).name }), { wait: false });
   await sleep(250);
   sfx('throw');
-  const sx = 96, sy = 150, tx = ENEMY_X + 56, ty = ENEMY_Y + 58;
+  const p = POS.top;
+  const sx = 96, sy = 150, tx = p.x + 56, ty = p.y + 58;
   B.ball = { x: sx, y: sy, r: 6, mode: 'fly' };
   await tween(520, (k) => {
     B.ball.x = sx + (tx - sx) * k;
@@ -771,10 +643,10 @@ async function capture(e) {
   const cap = createCapture({
     hpRatio: e.hp / e.stats.hp,
     asleep: e.status === 'sleep',
-    strength: HUMANS[e.id].strength,
-    gradeStruggle: e.grade.struggle,
+    strength: HUMANS[e.species].strength,
+    gradeStruggle: gradeOf(e.gradeId).struggle,
   });
-  T = null;
+  clearText();
   B.cap = cap;
   B.squeeze = 0;
   await sleep(400);
@@ -795,13 +667,14 @@ async function capture(e) {
     requestAnimationFrame(step);
   });
 
+  const v = B.view[1];
   if (result === 'caught') {
     const r0 = B.ball.r;
     await tween(380, (k) => {
       B.ball.r = r0 + (9 - r0) * ease(k);
-      B.eScale = Math.max(0.05, B.ball.r / 62);
+      v.scale = Math.max(0.05, B.ball.r / 62);
     });
-    B.eVis = false;
+    v.vis = false;
     B.cap = null;
     B.ball.mode = 'closed';
     sfx('rock');
@@ -825,30 +698,150 @@ async function capture(e) {
   B.ball.t = 0;
   await tween(320, (k) => (B.ball.t = k));
   B.ball = null;
-  await tween(450, (k) => (B.eX = k * 200));
-  B.eVis = false;
+  await tween(450, (k) => (v.x = k * 200));
+  v.vis = false;
   return 'escaped';
 }
 
-async function afterBattle(exp) {
-  const a = G.animal;
-  if (exp > 0 && a.hp > 0) {
-    await say(fill(TEXT.expGain, { animal: a.name, exp }));
-    for (const lv of gainExp(a, exp)) {
-      sfx('caught');
-      await say(fill(TEXT.levelUp, { animal: a.name, level: lv }));
+// ───────── 連線 PK ─────────
+async function chooseCode() {
+  LOBBY.editing = true;
+  LOBBY.pos = 0;
+  show('上下改數字，左右移動，A 確定。');
+  for (;;) {
+    const k = await waitKey(['UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'B']);
+    const d = LOBBY.digits;
+    if (k === 'UP') d[LOBBY.pos] = (d[LOBBY.pos] + 1) % 10;
+    if (k === 'DOWN') d[LOBBY.pos] = (d[LOBBY.pos] + 9) % 10;
+    if (k === 'LEFT') LOBBY.pos = (LOBBY.pos + 3) % 4;
+    if (k === 'RIGHT') LOBBY.pos = (LOBBY.pos + 1) % 4;
+    sfx('move');
+    if (k === 'A' || k === 'B') {
+      LOBBY.editing = false;
+      return k === 'A';
     }
   }
-  restore(a);
+}
+
+async function pvpLobby() {
+  scene = 'lobby';
+  LOBBY = { digits: [0, 0, 0, 0], pos: 0, editing: false };
+  show('檢查連線中……');
+  if (!(await canConnect())) {
+    await say('這個畫面沒辦法連線。請用 Claude 打開遊戲網址，朋友也要有權限打開同一個網址。');
+    LOBBY = null;
+    return;
+  }
+  show('要開房間還是加入朋友的房間？');
+  const i = await menu(['開新房間', '輸入房號'], { x: 160, y: 192, w: 160, h: 96, rowH: 30 });
+  if (i < 0) { LOBBY = null; return; }
+  if (i === 0) LOBBY.digits = [0, 0, 0, 0].map(() => Math.floor(Math.random() * 10));
+  else if (!(await chooseCode())) { LOBBY = null; return; }
+  const code = LOBBY.digits.join('');
+
+  let opp = null;
+  const conn = await openRoom(code, (p) => (opp = p));
+  if (!conn) {
+    await say('連不上房間，請稍後再試。');
+    LOBBY = null;
+    return;
+  }
+  const nonce = randomId(12);
+  const mine = myPresence({ nonce, team: teamInds() });
+  conn.setMine(mine);
+  try {
+    for (;;) {
+      show(`房號 ${code}。把房號告訴朋友，等待對手加入……（B 離開）`);
+      const r = await waitUntil(() => opp && opp.nonce, { cancel: true });
+      if (r === 'cancel') return;
+      const check = checkOpponent(opp);
+      if (check.ok) break;
+      if (check.reason === 'version') {
+        await say('雙方的遊戲版本不同，請兩邊都重新整理網頁再試一次。');
+        return;
+      }
+      await say('對手的隊伍資料有問題，沒辦法開打。');
+      return;
+    }
+    sfx('ping');
+    await say('對手來了！');
+    await pvpBattle(conn, mine, () => opp);
+  } finally {
+    conn.close();
+    LOBBY = null;
+  }
+}
+
+async function pvpBattle(conn, mine, getOpp) {
+  const opp0 = getOpp();
+  const { state: st, mySide } = setupBattle(mine, opp0);
+  startBattleView(st, mySide);
+  await battleIntro();
+  B.view.forEach((v) => (v.info = true));
+  await say(`對手派出了${active(st, 1 - mySide).name}！`);
+  const acts = [];
+  const sameOpp = () => getOpp()?.nonce === opp0.nonce;
+
+  for (let k = 0; st.winner === null; k++) {
+    let a = null;
+    if (mustChoose(st, mySide)) {
+      if (st.need.length) a = { type: 'switch', slot: await chooseMember({ forced: true }) };
+      else {
+        for (;;) {
+          show(`${active(st, mySide).name}\n要做什麼？`, 140);
+          const c = await menu(['技能', '換人', '投降'], { x: 152, y: 192, w: 168, h: 96, rowH: 34, cols: 2, colW: 74 }, { cancel: false });
+          if (c === 0) a = await chooseMove();
+          if (c === 1) {
+            const slot = await chooseMember();
+            if (slot !== null) a = { type: 'switch', slot };
+          }
+          if (c === 2) {
+            show('真的要投降嗎？');
+            if ((await menu(['投降', '繼續打'], { x: 180, y: 192, w: 140, h: 96, rowH: 30 })) === 0) a = { type: 'forfeit' };
+          }
+          if (a) break;
+        }
+      }
+    }
+    acts.push(encodeAct(a));
+    conn.setMine({ ...mine, acts });
+
+    // 等對手這一步的選擇；對手斷線就等他回來（最多 60 秒）
+    for (;;) {
+      show('等待對手……');
+      const r = await waitUntil(() => !sameOpp() || getOpp().acts?.length > k, { timeoutMs: 15000 });
+      if (r === 'ok' && sameOpp()) break;
+      show('對手好像斷線了，等他回來……（B 放棄）');
+      const back = await waitUntil(() => sameOpp() && getOpp().acts?.length > k, { cancel: true, timeoutMs: 60000 });
+      if (back === 'ok') break;
+      await say('對手離開了，這場不算。');
+      return;
+    }
+    const raw = [];
+    raw[mySide] = acts[k];
+    raw[1 - mySide] = getOpp().acts[k];
+    const step = stepActions(st, raw);
+    clearText();
+    await play(st.need.length ? replace(st, step) : runTurn(st, step));
+  }
+
+  if (st.winner === mySide) {
+    G.pvp.w++;
+    sfx('caught');
+    await say('你贏了！人類就是要這樣養。');
+  } else if (st.winner === -1) {
+    G.pvp.d++;
+    await say('平手。雙方的人類都累倒了。');
+  } else {
+    G.pvp.l++;
+    await say('你輸了……回牧場再練練吧。');
+  }
   save();
-  return ranch();
 }
 
 // ───────── 啟動 ─────────
 async function boot() {
-  try {
-    await Promise.race([document.fonts.load(FONT, '人類捕捉'), sleep(2500)]);
-  } catch {}
+  await loadFont();
   requestAnimationFrame(render);
   titleScreen();
 }
@@ -858,9 +851,10 @@ boot();
 if (location.hash === '#debug') {
   window.__cth = {
     G,
+    DATA_VERSION,
     get scene() { return scene; },
-    get menu() { return M?.items; },
-    get text() { return T?.lines.join(''); },
+    get menu() { return UI.menu?.items; },
+    get text() { return UI.text?.lines.join(''); },
     get battle() { return B; },
   };
 }
