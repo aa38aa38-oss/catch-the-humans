@@ -79,6 +79,15 @@
   .dpad button { background: var(--pad); border: 0; color: #39424f; font-size: 16px; padding: 0; }
   .dpad button::after { content: attr(data-arrow); }
   .dpad button.is-down { background: #000; }
+  /* 搖桿：整個左半邊都能按，手指下顯示一個小圓點 */
+  .left { align-self: stretch; justify-self: stretch; display: flex; align-items: center; justify-content: center; touch-action: none; }
+  .dpad button { pointer-events: none; }
+  .thumb {
+    position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px;
+    border-radius: 50%; background: rgba(210, 69, 110, 0.55); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25);
+    pointer-events: none; opacity: 0; transition: opacity 0.12s;
+  }
+  .thumb.on { opacity: 1; }
 
   .ab { display: flex; gap: 14px; transform: rotate(-22deg); }
   .ab .col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
@@ -137,6 +146,7 @@
       <div class="mid"></div>
       <button class="rt" data-key="RIGHT" data-arrow="▶" aria-label="右"></button>
       <button class="down" data-key="DOWN" data-arrow="▼" aria-label="下"></button>
+      <div class="thumb" aria-hidden="true"></div>
     </div>
   </div>
 

@@ -138,7 +138,59 @@ window.addEventListener('keyup', (e) => {
   if (k) release(k);
 });
 window.addEventListener('blur', () => (held.length = 0));
+// ───────── 搖桿：外觀是十字鍵，用起來像手遊的虛擬搖桿 ─────────
+// 在左半邊任何地方按下都算，以十字鍵中心為圓心，手指往哪推就往哪走；按住不放可以直接滑動換方向。
+const zone = document.querySelector('.left');
+const pad = document.querySelector('.dpad');
+if (zone && pad) {
+  const thumb = pad.querySelector('.thumb');
+  const arms = Object.fromEntries([...pad.querySelectorAll('[data-key]')].map((b) => [b.dataset.key, b]));
+  let pid = null;
+  let cur = null;
+  const setDir = (d) => {
+    if (d === cur) return;
+    if (cur) { release(cur); arms[cur]?.classList.remove('is-down'); }
+    cur = d;
+    if (d) { hold(d); emit(d); arms[d]?.classList.add('is-down'); }
+  };
+  const update = (e) => {
+    const r = pad.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2);
+    const dy = e.clientY - (r.top + r.height / 2);
+    const dist = Math.hypot(dx, dy);
+    const max = r.width / 2;
+    const k = dist > max ? max / dist : 1;
+    thumb.style.transform = `translate(${dx * k}px, ${dy * k}px)`;
+    if (dist < r.width * 0.14) return setDir(null); // 中間的不動區
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    // 推到斜角時維持原本的方向，避免在兩個方向之間亂跳
+    if (cur && (cur === 'LEFT' || cur === 'RIGHT' ? ax >= ay * 0.7 && Math.sign(dx) === (cur === 'RIGHT' ? 1 : -1)
+      : ay >= ax * 0.7 && Math.sign(dy) === (cur === 'DOWN' ? 1 : -1))) return;
+    setDir(ax > ay ? (dx > 0 ? 'RIGHT' : 'LEFT') : dy > 0 ? 'DOWN' : 'UP');
+  };
+  zone.addEventListener('pointerdown', (e) => {
+    if (pid !== null) return;
+    e.preventDefault();
+    pid = e.pointerId;
+    zone.setPointerCapture?.(pid);
+    thumb.classList.add('on');
+    update(e);
+  });
+  zone.addEventListener('pointermove', (e) => { if (e.pointerId === pid) update(e); });
+  const end = (e) => {
+    if (e.pointerId !== pid) return;
+    pid = null;
+    setDir(null);
+    thumb.classList.remove('on');
+    thumb.style.transform = '';
+  };
+  zone.addEventListener('pointerup', end);
+  zone.addEventListener('pointercancel', end);
+  zone.addEventListener('lostpointercapture', end);
+}
+
 for (const btn of document.querySelectorAll('[data-key]')) {
+  if (btn.closest('.dpad')) continue; // 十字鍵交給搖桿處理
   btn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     btn.classList.add('is-down');
