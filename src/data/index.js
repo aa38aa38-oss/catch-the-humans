@@ -17,8 +17,8 @@ const mechanics = (table, keys) =>
   Object.keys(table).sort().map((id) => [id, ...keys.map((k) => table[id][k])]);
 export const DATA_VERSION = hash32(
   JSON.stringify([
-    mechanics(ANIMALS, ['base', 'moves']),
-    mechanics(HUMANS, ['element', 'base', 'moves', 'strength']),
+    mechanics(ANIMALS, ['base', 'moves', 'learnset', 'evolveMoves', 'tms']),
+    mechanics(HUMANS, ['element', 'base', 'moves', 'strength', 'learnset', 'evolveMoves', 'tms']),
     mechanics(MOVES, ['kind', 'element', 'pp', 'power', 'accuracy', 'hits', 'effect', 'recoil']),
     GRADES.map((g) => [g.id, g.statBonus]),
   ]),

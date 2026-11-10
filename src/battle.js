@@ -34,11 +34,12 @@ export function makeFighter(ind, side, slot, levelOverride) {
   const sp = speciesOf(ind.kind, ind.species);
   const grade = gradeOf(ind.gradeId);
   const level = levelOverride ?? ind.level;
+  const moves = ind.moves?.length ? ind.moves : sp.moves;
   const stats = calcStats(sp.base, level, ind.kind === 'animal' ? 1 : grade.statBonus);
   return {
     uid: ind.uid, kind: ind.kind, species: ind.species, name: sp.name, gradeId: grade.id,
     element: ind.kind === 'animal' ? null : sp.element,
-    moves: [...sp.moves], pp: sp.moves.map((id) => MOVES[id].pp), level, stats, hp: stats.hp,
+    moves: [...moves], pp: moves.map((id) => MOVES[id].pp), level, stats, hp: stats.hp,
     stages: { atk: 0, def: 0, acc: 0 }, status: null, sleepTurns: 0, healsUsed: 0,
     side, slot,
   };
@@ -309,15 +310,19 @@ export function replace(state, choices) {
 export const expToNext = (level) => level * 8;
 export const expReward = (fighter) => fighter.level * 6;
 
-/** 個體加經驗值，回傳升到的等級清單 */
+export const LEVEL_CAP = 50;
+
+/** 個體加經驗值，回傳升到的等級清單。到 Lv.50 就不再升級 */
 export function gainExp(ind, amount) {
   const ups = [];
+  if (ind.level >= LEVEL_CAP) return ups;
   ind.exp += amount;
-  while (ind.exp >= expToNext(ind.level)) {
+  while (ind.level < LEVEL_CAP && ind.exp >= expToNext(ind.level)) {
     ind.exp -= expToNext(ind.level);
     ind.level++;
     ups.push(ind.level);
   }
+  if (ind.level >= LEVEL_CAP) ind.exp = 0;
   return ups;
 }
 

@@ -4,7 +4,7 @@ import { createBattle, runTurn, replace, chooseAiAction, active, aliveSlots, gai
 import { createCapture, press, update } from './capture.js';
 import { ANIMALS, HUMANS, MOVES, GRADES, AREAS, DATA_VERSION } from './data/index.js';
 import { ANIMAL_ORDER } from './data/animals.js';
-import { createIndividual, toWire } from './individual.js';
+import { createIndividual, toWire, fromWire, defaultMoves, movesLearnedAt, learnableMoves } from './individual.js';
 import { myPresence, checkOpponent, setupBattle, encodeAct, decodeAct, mustChoose, stepActions } from './pvp.js';
 
 // ── 資料完整性（人類增加到 51 隻時，這裡會幫忙抓錯）──
@@ -18,6 +18,14 @@ for (const [id, h] of Object.entries(HUMANS)) {
   for (const k of ['appear', 'caught', 'escape']) assert.ok(h.lines[k]?.length, `${h.name} 缺少 ${k} 台詞`);
 }
 for (const [id, m] of Object.entries(MOVES)) assert.ok(Number.isInteger(m.pp) && (m.pp > 0 || id === 'STRUGGLE'), `技能 ${id} 要有 PP`);
+for (const sp of [...Object.values(ANIMALS), ...Object.values(HUMANS)]) {
+  assert.ok(sp.moves.length >= 1 && sp.moves.length <= 4, `${sp.name} 初始招式 1～4 個`);
+  for (const e of sp.learnset ?? []) {
+    assert.ok(MOVES[e.move], `${sp.name} 學招表的 ${e.move} 不存在`);
+    assert.ok(Number.isInteger(e.level) && e.level >= 2 && e.level <= 50, `${sp.name} 學招等級要在 2～50`);
+  }
+  for (const m of [...(sp.evolveMoves ?? []), ...(sp.tms ?? [])]) assert.ok(MOVES[m], `${sp.name} 的 ${m} 不存在`);
+}
 for (const a of Object.values(ANIMALS)) for (const m of a.moves) assert.ok(MOVES[m], `${a.name} 的技能 ${m} 不存在`);
 for (const [id, area] of Object.entries(AREAS)) for (const e of area.encounters) assert.ok(HUMANS[e.species], `地區 ${id} 的 ${e.species} 不存在`);
 assert.equal(GRADES.reduce((s, g) => s + g.rate, 0).toFixed(5), '1.00000', '肉質機率總和要是 100%');
@@ -131,10 +139,30 @@ assert.notEqual(playOut(42), playOut(43), '不同種子要有不同結果');
   assert.deepEqual(decodeAct(encodeAct({ type: 'move', index: -1 })), { type: 'move', index: -1 });
 }
 
-// ── 升級 ──
+// ── 升級、等級上限 ──
 {
   const cow = animal('COW');
   assert.deepEqual(gainExp(cow, 40), [6]);
+  const old = animal('COW', 49);
+  assert.deepEqual(gainExp(old, 100000), [50], '最高 Lv.50');
+  assert.deepEqual(gainExp(old, 100000), []);
+  assert.equal(old.exp, 0);
+}
+
+// ── 學招（用測試用的學招表）──
+{
+  const ace = HUMANS.ACE;
+  const saved = ace.learnset;
+  ace.learnset = [{ level: 8, move: 'WATER_JET' }, { level: 10, move: 'PALM_FAN' }, { level: 12, move: 'ROCK_PUNCH' }];
+  assert.deepEqual(movesLearnedAt('human', 'ACE', 10), ['PALM_FAN']);
+  assert.deepEqual(defaultMoves('human', 'ACE', 5), ['FIRE_FIST', 'FLAME_RING']);
+  assert.deepEqual(defaultMoves('human', 'ACE', 12), ['FLAME_RING', 'WATER_JET', 'PALM_FAN', 'ROCK_PUNCH'], '超過 4 招只留最後學的 4 招');
+  assert.ok(learnableMoves('human', 'ACE').has('ROCK_PUNCH'));
+  const w = toWire(createIndividual('human', 'ACE', 12));
+  assert.ok(fromWire(w, 50), '合法招式可以傳');
+  assert.equal(fromWire({ ...w, m: ['LULLABY'] }, 50), null, '學不會的招式不能傳（防作弊）');
+  assert.equal(fromWire({ ...w, m: ['FIRE_FIST', 'FIRE_FIST', 'FIRE_FIST', 'FIRE_FIST', 'FIRE_FIST'] }, 50), null, '最多 4 招');
+  ace.learnset = saved;
 }
 
 // ── 收服：每秒按 7 下 A，看不同血量的成功率 ──

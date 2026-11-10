@@ -10,7 +10,7 @@ import { ANIMAL_ORDER } from './data/animals.js';
 import { GENERIC_CAUGHT } from './data/humans.js';
 import { TEXT } from './data/text.js';
 import { ELEMENT_NAMES } from './elements.js';
-import { createIndividual, nameOf } from './individual.js';
+import { createIndividual, nameOf, movesLearnedAt, MOVE_SLOTS } from './individual.js';
 import { canConnect, openRoom } from './net.js';
 import { myPresence, checkOpponent, setupBattle, encodeAct, mustChoose, stepActions } from './pvp.js';
 import { randomId } from './rng.js';
@@ -522,13 +522,15 @@ async function chooseMove() {
   let start = 0;
   for (;;) {
     clearText();
+    // 招式 2×2 排在文字框；上方小框顯示目前游標那招的屬性、威力、PP
     const i = await menu(f.moves.map((m) => MOVES[m].name), {
-      x: 0, y: 192, w: W, h: 96, rowH: 30,
+      x: 0, y: 192, w: W, h: 96, rowH: 34, cols: 2, colW: 150,
       extra: (idx) => {
         const m = MOVES[f.moves[idx]];
         const el = m.element ? `${ELEMENT_NAMES[m.element]}屬性` : '無屬性';
-        text(m.kind === 'attack' ? `${el}　威力${m.power}` : `${el}　變化技`, 180, 206, C.soft);
-        text(`PP ${f.pp[idx]}/${m.pp}`, 180, 236, f.pp[idx] > 0 ? C.ink : C.hpR);
+        box(150, 130, 170, 64);
+        text(m.kind === 'attack' ? `${el}　威力${m.power}` : `${el}　變化技`, 164, 142, C.soft);
+        text(`PP ${f.pp[idx]}/${m.pp}`, 164, 164, f.pp[idx] > 0 ? C.ink : C.hpR);
       },
     }, { start });
     if (i < 0) return null;
@@ -628,11 +630,43 @@ async function afterWild(joined, exp) {
       for (const lv of gainExp(ind, exp)) {
         sfx('caught');
         await say(fill(TEXT.levelUp, { animal: f.name, level: lv }));
+        for (const m of movesLearnedAt(ind.kind, ind.species, lv)) await learnMove(ind, f.name, m);
       }
     }
   }
   save();
   return ranch();
+}
+
+/** 學新招。招式滿 4 個時讓玩家選一招忘掉，也可以放棄 */
+async function learnMove(ind, name, moveId) {
+  const mv = MOVES[moveId].name;
+  if (ind.moves.includes(moveId)) return;
+  if (ind.moves.length < MOVE_SLOTS) {
+    ind.moves.push(moveId);
+    sfx('ping');
+    await say(`${name}學會了${mv}！`);
+    return;
+  }
+  for (;;) {
+    await say(`${name}想學${mv}，但是已經會 4 招了。`);
+    show(`要忘掉哪一招，換成${mv}？`);
+    const items = [...ind.moves.map((m) => MOVES[m].name), `不學${mv}`];
+    const i = await menu(items, { x: 0, y: 0, w: W, h: 192, rowH: 32 }, { cancel: false });
+    if (i === MOVE_SLOTS) {
+      show(`真的不學${mv}嗎？`);
+      if ((await menu(['不學了', '再想想'], { x: 180, y: 192, w: 140, h: 96, rowH: 30 }, { cancel: false })) === 0) {
+        await say(`${name}沒有學${mv}。`);
+        return;
+      }
+      continue;
+    }
+    const old = MOVES[ind.moves[i]].name;
+    ind.moves[i] = moveId;
+    sfx('ping');
+    await say(`一、二……噗！${name}忘掉了${old}，學會了${mv}！`);
+    return;
+  }
 }
 
 async function capture(e) {
@@ -862,6 +896,7 @@ if (location.hash === '#debug') {
   window.__cth = {
     G,
     DATA_VERSION,
+    data: { ANIMALS, HUMANS },
     get scene() { return scene; },
     get menu() { return UI.menu?.items; },
     get text() { return UI.text?.lines.join(''); },

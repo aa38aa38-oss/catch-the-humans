@@ -1,6 +1,6 @@
 // 存檔：只存在這支手機的瀏覽器裡。
 // 存檔有版本號，之後格式改變時寫一個 migrate 步驟，舊存檔就能升級而不會壞掉。
-import { createIndividual } from './individual.js';
+import { createIndividual, defaultMoves } from './individual.js';
 import { ANIMALS, HUMANS } from './data/index.js';
 
 const KEY = 'cth-save';
@@ -71,6 +71,7 @@ export function load() {
     pvp: { w: 0, l: 0, d: 0, ...d.pvp },
   });
   G.team = G.team.filter((uid) => findHuman(uid)).slice(0, TEAM_HUMANS);
+  for (const ind of [G.animal, ...G.humans]) if (!ind.moves?.length) ind.moves = defaultMoves(ind.kind, ind.species, ind.level);
   save();
   try { localStorage.removeItem('cth-save-v1'); } catch {}
   return true;
