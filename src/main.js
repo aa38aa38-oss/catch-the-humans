@@ -17,10 +17,12 @@ import { randomId } from './rng.js';
 import { G, save, load, hasSave, newGame, teamInds, findHuman, findInd, healAll, TEAM_HUMANS } from './save.js';
 import { explore, drawWorld, placeAt } from './overworld.js';
 import { synthesize, shipPrice, SYNTH_MATERIALS, MAX_BOOST } from './ranch.js';
+import { ITEMS, SHOP } from './data/items.js';
+import { itemCount, addItem } from './save.js';
 import { SIZE } from './sprites.js';
 import {
   W, H, ctx, C, ELEMENT_COL, GRADE_COL, BIG, FONT, UI, TEXT_X, sleep, ease, tween, loadFont, sfx, waiters, waitKey,
-  waitUntil, say, show, clearText, menu, box, text, chip, sprite, hpBar, drawText, drawMenu, ball,
+  waitUntil, say, show, clearText, menu, box, text, chip, sprite, hpBar, drawText, drawMenu, ball, TEXT_SPEEDS, getTextSpeed, setTextSpeed,
 } from './ui.js';
 
 const pad3 = (n) => String(n).padStart(3, '0');
@@ -282,9 +284,17 @@ function drawCard() {
   sprite(c.species, 18, 44, 4);
   text(h.name, 148, 44);
   chip(`${ELEMENT_NAMES[h.element]}屬性`, 148, 70, ELEMENT_COL[h.element]);
-  text('肉質', 148, 98, C.soft);
-  text(grade.name, 196, 98, GRADE_COL[grade.id]);
-  text(`Lv.${c.level}`, 148, 122);
+  if (c.dex) {
+    // 圖鑑模式：顯示抓過的最高肉質、目前養了幾隻
+    text('最高肉質', 148, 98, C.soft);
+    if (c.gradeId) text(grade.name, 228, 98, GRADE_COL[grade.id]);
+    else text('還沒抓到', 228, 98, C.soft);
+    text(`牧場裡有 ${c.owned} 隻`, 148, 122);
+  } else {
+    text('肉質', 148, 98, C.soft);
+    text(grade.name, 196, 98, GRADE_COL[grade.id]);
+    text(`Lv.${c.level}`, 148, 122);
+  }
   text(`出處：${h.origin}`, 148, 146, C.soft);
   if (c.no) text(`耳標 ${pad3(c.no)}`, 302, 16, C.ink, FONT, 'right');
   box(0, 192, W, 96);
@@ -295,7 +305,7 @@ function drawLobby(now) {
   ctx.fillStyle = C.night;
   ctx.fillRect(0, 0, W, H);
   text('連線對戰', 18, 12, '#f6f4ea');
-  text('Lv.50 公平賽', 302, 12, C.soft, FONT, 'right');
+  if (L0) text(L0.mode === 'fair' ? 'Lv.50 公平賽' : 'Lv.50 無差別賽', 302, 12, C.soft, FONT, 'right');
   const L0 = LOBBY;
   if (L0) {
     text('房號', 160, 40, C.soft, FONT, 'center');
@@ -387,6 +397,8 @@ async function world() {
     const ev = await explore();
     if (ev.type === 'encounter') {
       await wildBattle(ev.area);
+    } else if (ev.type === 'notice') {
+      await say(ev.text);
     } else if (ev.type === 'talk') {
       await talk(ev.thing);
     } else if (ev.type === 'menu') {
@@ -398,7 +410,9 @@ async function world() {
 const withAnimal = (str) => fill(str, { animal: nameOf(G.animal) });
 
 async function talk(thing) {
-  for (const line of thing.lines) await say(withAnimal(line));
+  if (thing.trainer) return trainerTalk(thing.trainer);
+  for (const line of thing.lines ?? []) await say(withAnimal(line));
+  if (thing.shop) return shopMenu();
   if (thing.action === 'ranch') return ranchMenu();
   if (!thing.heal) return;
   show('要吃便當休息嗎？');
@@ -445,7 +459,7 @@ async function ranchMenu() {
     }
     if (i === 0) await synthMenu();
     if (i === 1) await shipMenu();
-    if (i === 2) await dexScreen();
+    if (i === 2) await herdScreen();
     if (i === 3) await teamScreen();
   }
 }
@@ -501,17 +515,24 @@ async function worldMenu() {
   for (;;) {
     scene = 'world';
     clearText();
-    const i = await menu(['隊伍', '人類圖鑑', '連線對戰', '存檔', '回標題', '關閉'], { x: 176, y: 0, w: 144, h: 220, rowH: 32 });
-    if (i < 0 || i === 5) return null;
-    if (i === 0) await teamScreen();
-    if (i === 1) await dexScreen();
-    if (i === 2) await pvpLobby();
-    if (i === 3) {
+    const badges = Object.keys(G.flags).filter((k) => k.startsWith('BADGE:')).length;
+    show(`錢包：${G.money} 元\n徽章：${badges} 個`, 150);
+    const items = ['隊伍', '背包', '人類圖鑑', '連線對戰', '設定', '存檔', '回標題'];
+    const i = await menu(items, { x: 176, y: 0, w: 144, h: 240, rowH: 30 });
+    clearText();
+    if (i < 0) return null;
+    const pickd = items[i];
+    if (pickd === '隊伍') await teamScreen();
+    if (pickd === '背包') await fieldBag();
+    if (pickd === '人類圖鑑') await speciesDex();
+    if (pickd === '連線對戰') await pvpLobby();
+    if (pickd === '設定') await settings();
+    if (pickd === '存檔') {
       save();
       scene = 'world';
       await say('存檔完成。');
     }
-    if (i === 4) {
+    if (pickd === '回標題') {
       save();
       return 'title';
     }
@@ -566,7 +587,7 @@ async function teamScreen() {
   }
 }
 
-async function dexScreen() {
+async function herdScreen() {
   if (!G.humans.length) {
     await say('牧場裡還是空的。快去抓第一隻人類吧。');
     return;
@@ -701,7 +722,177 @@ async function chooseMember({ forced = false } = {}) {
   }
 }
 
+// ───────── 背包 ─────────
+const bagList = (filter) => Object.entries(G.bag).filter(([id, n]) => n > 0 && ITEMS[id] && filter(ITEMS[id])).map(([id, n]) => ({ id, n }));
+
+/** 從背包選一個道具，回傳道具 id 或 null */
+async function chooseItem(prompt, filter) {
+  const list = bagList(filter);
+  if (!list.length) {
+    await say('背包裡沒有可以用的道具。');
+    return null;
+  }
+  show(prompt);
+  const i = await menu(list.map((x) => `${ITEMS[x.id].name}　×${x.n}`), LIST_BOX);
+  return i < 0 ? null : list[i].id;
+}
+
+/** 在地圖上用道具 */
+async function fieldBag() {
+  for (;;) {
+    scene = 'world';
+    const id = await chooseItem('要用什麼？（B 關閉）', (it) => it.use !== 'battle');
+    if (!id) return;
+    const it = ITEMS[id];
+    if (it.kind === 'repel') {
+      if (G.repel > 0) { await say(`驅人噴霧的效果還有 ${G.repel} 步。`); continue; }
+      G.repel = it.steps;
+      addItem(id, -1);
+      save();
+      await say(`噴了驅人噴霧。接下來 ${it.steps} 步不會遇到野生人類。`);
+      continue;
+    }
+    // 回體力、回 PP：選一隻隊員
+    const team = teamInds();
+    show(`要給誰用${it.name}？`);
+    const j = await menu(team.map((ind) => {
+      const [hp, max] = hpOf(ind);
+      return `${nameOf(ind)} Lv${ind.level} ${hp > 0 ? `${hp}/${max}` : '倒下'}`;
+    }), LIST_BOX);
+    if (j < 0) continue;
+    const ind = team[j];
+    const [hp, max] = hpOf(ind);
+    if (it.kind === 'heal') {
+      if (hp <= 0) { await say(`${nameOf(ind)}已經倒下了。${it.name}救不回來，去便當店休息吧。`); continue; }
+      if (hp >= max) { await say(`${nameOf(ind)}的體力已經是滿的。`); continue; }
+      const nhp = Math.min(max, hp + Math.ceil(max * it.heal));
+      ind.hp = nhp >= max ? null : nhp;
+      await say(`${nameOf(ind)}喝了${it.name}，體力回復到 ${nhp}/${max}！`);
+      if (ind.species === 'CHICKEN') await say('……雞決定不要去想它是用什麼做的。');
+    } else if (it.kind === 'pp') {
+      if (!ind.pp) { await say(`${nameOf(ind)}的招式次數已經是滿的。`); continue; }
+      ind.pp = null;
+      await say(`${nameOf(ind)}喝了${it.name}，招式次數全部回滿了！`);
+    }
+    addItem(id, -1);
+    save();
+  }
+}
+
+/**
+ * 戰鬥中用道具。回傳：
+ *   { ball: id }  丟寶貝球（交給呼叫的人處理收服）
+ *   'used'        用了回復道具（這回合換對方出手）
+ *   null          取消
+ */
+async function battleBag(canCatch) {
+  for (;;) {
+    const id = await chooseItem('要用什麼？', (it) => it.use !== 'field');
+    if (!id) return null;
+    const it = ITEMS[id];
+    if (it.kind === 'ball') {
+      if (!canCatch) { await say('不能收服別人養的人類！'); continue; }
+      return { ball: id };
+    }
+    const side = B.st.sides[0];
+    show(`要給誰用${it.name}？`);
+    const j = await menu(side.team.map((f) => `${f.name} Lv${f.level} ${f.hp > 0 ? `${f.hp}/${f.stats.hp}` : '倒下'}`), LIST_BOX);
+    if (j < 0) continue;
+    const f = side.team[j];
+    if (f.hp <= 0) { await say(`${f.name}已經倒下了，${it.name}救不回來。`); continue; }
+    if (it.kind === 'heal') {
+      if (f.hp >= f.stats.hp) { await say(`${f.name}的體力已經是滿的。`); continue; }
+      addItem(id, -1);
+      const nhp = Math.min(f.stats.hp, f.hp + Math.ceil(f.stats.hp * it.heal));
+      f.hp = nhp;
+      clearText();
+      if (j === side.active) await play([{ t: 'hp', side: 0, hp: nhp }]);
+      await say(`${f.name}喝了${it.name}，體力回復了！`);
+    } else {
+      addItem(id, -1);
+      f.pp = f.moves.map((m) => MOVES[m].pp);
+      await say(`${f.name}喝了${it.name}，招式次數全部回滿了！`);
+    }
+    return 'used';
+  }
+}
+
+// ───────── 商店（一樓大廳的超商）─────────
+async function shopMenu() {
+  for (;;) {
+    scene = 'world';
+    show(`錢包：${G.money} 元\n要買什麼？`);
+    const i = await menu(SHOP.map((id) => `${ITEMS[id].name}　${ITEMS[id].price}元`), LIST_BOX);
+    if (i < 0) {
+      await say('店員：「謝謝光臨！」');
+      return;
+    }
+    const id = SHOP[i];
+    const it = ITEMS[id];
+    await say(it.desc);
+    show(`${it.name}要買幾個？（背包裡有 ${itemCount(id)} 個）`);
+    const qs = [1, 5, 10];
+    const q = await menu(qs.map((n) => `${n} 個　${n * it.price}元`), { x: 150, y: 80, w: 170, h: 112, rowH: 28 });
+    if (q < 0) continue;
+    const n = qs[q];
+    if (G.money < n * it.price) {
+      await say('錢不夠。去牧場出貨一些人類吧。');
+      continue;
+    }
+    G.money -= n * it.price;
+    addItem(id, n);
+    save();
+    sfx('ping');
+    await say(`買了 ${n} 個${it.name}！`);
+    if (G.animal.species === 'CHICKEN') await say('店員：「要不要加購一顆茶葉蛋？」……雞沉默了。');
+  }
+}
+
+// ───────── 圖鑑、設定 ─────────
+const markSeen = (species) => { if (!G.seen.includes(species)) G.seen.push(species); };
+const GRADE_ORDER = ['CHOICE', 'PRIME', 'A5'];
+function markCaught(ind) {
+  markSeen(ind.species);
+  if (GRADE_ORDER.indexOf(ind.gradeId) > GRADE_ORDER.indexOf(G.best[ind.species] ?? '')) G.best[ind.species] = ind.gradeId;
+}
+
+async function speciesDex() {
+  const list = Object.entries(HUMANS).sort((a, b) => a[1].no - b[1].no);
+  const caught = Object.keys(G.best).length;
+  for (;;) {
+    scene = 'world';
+    show(`遇過 ${G.seen.length} 種，抓過 ${caught} 種。`);
+    const items = list.map(([id, h]) => {
+      if (!G.seen.includes(id)) return `No.${pad3(h.no)} ？？？`;
+      return `No.${pad3(h.no)} ${h.name}${G.best[id] ? '　' + gradeOf(G.best[id]).name : ''}`;
+    });
+    const i = await menu(items, LIST_BOX);
+    if (i < 0) return;
+    const [id] = list[i];
+    if (!G.seen.includes(id)) {
+      await say('還沒遇過這種人類。去更多地方找找看吧。');
+      continue;
+    }
+    CARD = { species: id, gradeId: G.best[id] ?? null, dex: true, owned: G.humans.filter((h) => h.species === id).length };
+    scene = 'card';
+    await say(G.best[id] ? HUMANS[id].dex : '只有遠遠看過。抓到之後才知道牠的肉質。');
+  }
+}
+
+async function settings() {
+  const speeds = Object.keys(TEXT_SPEEDS);
+  show(`文字速度：目前是「${getTextSpeed()}」`);
+  const i = await menu(speeds.map((s) => `文字速度：${s}`), { x: 150, y: 80, w: 170, h: 112, rowH: 28 }, { start: speeds.indexOf(getTextSpeed()) });
+  if (i >= 0) {
+    setTextSpeed(speeds[i]);
+    await say(`文字速度改成「${speeds[i]}」了。按住 A 可以快轉。`);
+  }
+}
+
 // ───────── 野生戰鬥 ─────────
+const ACTIONS = ['技能', '換人', '背包', '逃跑'];
+const ACTION_BOX = { x: 152, y: 192, w: 168, h: 96, rowH: 34, cols: 2, colW: 74 };
+
 async function wildBattle(areaId) {
   const w = rollWild(AREAS[areaId], Math.random, GRADES);
   const wild = createIndividual('human', w.species, w.level, w.gradeId);
@@ -712,50 +903,68 @@ async function wildBattle(areaId) {
   await battleIntro();
   B.view[1].info = true;
   const e = active(st, 1);
+  markSeen(e.species);
   const v = { animal: nameOf(G.animal), human: e.name };
   await say(fill(pick(HUMANS[e.species].lines.appear), v));
+  if (e.gradeId === 'A5') {
+    // A5 和牛：稀有的「閃光」，要有儀式感
+    sfx('caught');
+    for (let k = 0; k < 3; k++) await tween(140, (t) => (fx.flash = 0.9 * (1 - t)));
+    await say('★ 閃閃發亮！這是稀有的「A5和牛」！ ★');
+  }
   B.view[0].info = true;
 
   for (;;) {
     const me = active(st, 0);
     show(`${me.name}\n要做什麼？`, 140);
-    const act = await menu(['技能', '換人', '寶貝球', '逃跑'], { x: 152, y: 192, w: 168, h: 96, rowH: 34, cols: 2, colW: 74 }, { cancel: false });
+    const act = await menu(ACTIONS, ACTION_BOX, { cancel: false });
     let action = null;
     if (act === 0) action = await chooseMove();
     else if (act === 1) {
       const slot = await chooseMember();
       if (slot !== null) action = { type: 'switch', slot };
     } else if (act === 2) {
-      const r = await capture(e);
-      if (r === 'caught') {
-        const ind = createIndividual('human', e.species, e.level, e.gradeId, { no: G.nextNo++ });
-        G.humans.push(ind);
-        const lines = [...HUMANS[e.species].lines.caught, ...GENERIC_CAUGHT];
-        await showCard(ind, fill(pick(lines), { ...v, grade: gradeOf(e.gradeId).name, no: pad3(ind.no) }));
-        if (G.team.length < TEAM_HUMANS) {
-          G.team.push(ind.uid);
-          await say(`${e.name}加入了隊伍！`);
-        } else await say(`隊伍滿了。${e.name}被送進牧場。`);
-        scene = 'battle';
-        return afterWild(joined, expReward(e));
+      const r = await battleBag(true);
+      if (r === 'used') action = { type: 'pass' };
+      else if (r?.ball) {
+        if (e.hp / e.stats.hp > 0.5) {
+          await say('對方還很有活力，現在丟很可能抓不住……');
+          show('還是要丟嗎？');
+          if ((await menu(['還是要丟', '算了'], { x: 180, y: 96, w: 140, h: 96, rowH: 30 })) !== 0) continue;
+        }
+        addItem(r.ball, -1);
+        const res = await capture(e, ITEMS[r.ball]);
+        if (res === 'caught') {
+          const ind = createIndividual('human', e.species, e.level, e.gradeId, { no: G.nextNo++ });
+          G.humans.push(ind);
+          markCaught(ind);
+          const lines = [...HUMANS[e.species].lines.caught, ...GENERIC_CAUGHT];
+          await showCard(ind, fill(pick(lines), { ...v, grade: gradeOf(e.gradeId).name, no: pad3(ind.no) }));
+          if (G.team.length < TEAM_HUMANS) {
+            G.team.push(ind.uid);
+            await say(`${e.name}加入了隊伍！`);
+          } else await say(`隊伍滿了。${e.name}被送進牧場。`);
+          scene = 'battle';
+          return afterBattle(joined, expReward(e));
+        }
+        // 收服失敗：人類撐破球，戰鬥繼續，這一回合換對方出手
+        await say(fill(pick(HUMANS[e.species].lines.breakout), v));
+        action = { type: 'pass' };
       }
-      // 收服失敗：人類撐破球，戰鬥繼續，這一回合換對方出手
-      await say(fill(pick(HUMANS[e.species].lines.breakout), v));
-      action = { type: 'pass' };
     } else {
       await say(TEXT.run);
-      return afterWild(joined, 0);
+      return afterBattle(joined, 0);
     }
     if (!action) continue;
 
     await play(runTurn(st, [action, chooseAiAction(st, 1)]));
     if (st.winner === 0) {
       for (const s of TEXT.humanFainted.slice(1)) await say(fill(s, v));
-      return afterWild(joined, expReward(e));
+      return afterBattle(joined, expReward(e));
     }
     if (st.winner === 1) {
       for (const s of TEXT.playerFainted.slice(1)) await say(fill(s, v));
-      return afterWild(joined, 0, true);
+      return afterBattle(joined, 0, true);
     }
     if (st.need.includes(0)) {
       const slot = await chooseMember({ forced: true });
@@ -764,11 +973,79 @@ async function wildBattle(areaId) {
   }
 }
 
+// ───────── 訓練家對戰（道館）─────────
+async function trainerTalk(tr) {
+  if (G.flags[tr.id]) {
+    for (const line of tr.after) await say(withAnimal(line));
+    return;
+  }
+  for (const line of tr.intro) await say(withAnimal(line));
+  if (!teamInds().some((ind) => hpOf(ind)[0] > 0)) {
+    await say('你的隊伍都倒下了，先去便當店休息吧。');
+    return;
+  }
+  await trainerBattle(tr);
+}
+
+async function trainerBattle(tr) {
+  const foes = tr.team.map((t) => createIndividual('human', t.species, t.level, t.gradeId));
+  const st = createBattle({ mode: 'trainer', seed: (Math.random() * 2 ** 32) >>> 0, teams: [teamInds(), foes] });
+  startBattleView(st, 0);
+  const joined = new Set([active(st, 0).uid]);
+  B.onSwitch = (s, f) => (s === 0 ? joined.add(f.uid) : markSeen(f.species));
+  await battleIntro();
+  B.view[1].info = true;
+  markSeen(active(st, 1).species);
+  await say(`${tr.name}派出了${active(st, 1).name}！`);
+  B.view[0].info = true;
+
+  for (;;) {
+    const me = active(st, 0);
+    show(`${me.name}\n要做什麼？`, 140);
+    const act = await menu(ACTIONS, ACTION_BOX, { cancel: false });
+    let action = null;
+    if (act === 0) action = await chooseMove();
+    else if (act === 1) {
+      const slot = await chooseMember();
+      if (slot !== null) action = { type: 'switch', slot };
+    } else if (act === 2) {
+      if ((await battleBag(false)) === 'used') action = { type: 'pass' };
+    } else await say('不能從訓練家的對戰中逃跑！');
+    if (!action) continue;
+
+    await play(runTurn(st, [action, chooseAiAction(st, 1)]));
+    if (st.winner === 0) {
+      for (const line of tr.win) await say(withAnimal(line));
+      G.flags[tr.id] = true;
+      G.money += tr.reward;
+      sfx('caught');
+      await say(`得到了 ${tr.reward} 元！`);
+      if (tr.badge) {
+        G.flags[`BADGE:${tr.badge}`] = true;
+        sfx('ping');
+        await say(`★ 得到了「${tr.badge}」！ ★`);
+      }
+      const exp = Math.round(foes.reduce((sum, f) => sum + f.level * 6, 0) * 1.5);
+      return afterBattle(joined, exp);
+    }
+    if (st.winner === 1) {
+      await say(`${tr.name}：「下次再來挑戰吧！」`);
+      for (const s of TEXT.playerFainted.slice(2)) await say(fill(s, { animal: nameOf(G.animal) }));
+      return afterBattle(joined, 0, true);
+    }
+    if (st.need.length) {
+      const mine = st.need.includes(0) ? await chooseMember({ forced: true }) : null;
+      const theirs = st.need.includes(1) ? aliveSlots(st, 1)[0] : null;
+      await play(replace(st, [mine, theirs]));
+    }
+  }
+}
+
 /**
- * 野生戰鬥結束：體力和 PP 帶回個體（到便當店才補滿）；
+ * 戰鬥結束：體力和 PP 帶回個體（到便當店才補滿）；
  * 沒倒下的參戰者拿經驗值；全滅就回到最後休息的便當店。
  */
-async function afterWild(joined, exp, wiped = false) {
+async function afterBattle(joined, exp, wiped = false) {
   scene = 'battle';
   for (const f of B.st.sides[0].team) {
     const ind = findInd(f.uid);
@@ -833,8 +1110,8 @@ async function learnMove(ind, name, moveId) {
   }
 }
 
-async function capture(e) {
-  await say(fill(TEXT.throwBall, { animal: active(B.st, 0).name }), { wait: false });
+async function capture(e, ballItem = ITEMS.BALL) {
+  await say(`${active(B.st, 0).name}丟出了${ballItem.name}！`, { wait: false });
   await sleep(250);
   sfx('throw');
   const p = POS.top;
@@ -853,6 +1130,7 @@ async function capture(e) {
     asleep: e.status === 'sleep',
     strength: HUMANS[e.species].strength,
     gradeStruggle: gradeOf(e.gradeId).struggle,
+    ball: ballItem.struggle,
   });
   clearText();
   B.cap = cap;
@@ -944,23 +1222,28 @@ async function pvpLobby() {
   show('要開房間還是加入朋友的房間？');
   const i = await menu(['開新房間', '輸入房號'], { x: 160, y: 192, w: 160, h: 96, rowH: 30 });
   if (i < 0) { LOBBY = null; return; }
+  show('要打哪一種？（兩個人要選一樣的）');
+  const m = await menu(['公平賽', '無差別賽'], { x: 160, y: 192, w: 160, h: 96, rowH: 30 });
+  if (m < 0) { LOBBY = null; return; }
+  LOBBY.mode = m === 0 ? 'fair' : 'open';
+  await say(m === 0 ? '公平賽：全部 Lv.50，肉質和強化都不算，只比隊伍搭配。' : '無差別賽：全部 Lv.50，肉質和強化照算。');
   if (i === 0) LOBBY.digits = [0, 0, 0, 0].map(() => Math.floor(Math.random() * 10));
   else if (!(await chooseCode())) { LOBBY = null; return; }
   const code = LOBBY.digits.join('');
 
   let opp = null;
-  const conn = await openRoom(code, (p) => (opp = p));
+  const conn = await openRoom(`${LOBBY.mode}-${code}`, (p) => (opp = p));
   if (!conn) {
     await say('連不上房間，請稍後再試。');
     LOBBY = null;
     return;
   }
   const nonce = randomId(12);
-  const mine = myPresence({ nonce, team: teamInds() });
+  const mine = myPresence({ nonce, team: teamInds(), mode: LOBBY.mode });
   conn.setMine(mine);
   try {
     for (;;) {
-      show(`房號 ${code}。把房號告訴朋友，等待對手加入……（B 離開）`);
+      show(`${LOBBY.mode === 'fair' ? '公平賽' : '無差別賽'}房號 ${code}。把房號和模式告訴朋友，等待對手加入……（B 離開）`);
       const r = await waitUntil(() => opp && opp.nonce, { cancel: true });
       if (r === 'cancel') return;
       const check = checkOpponent(opp);

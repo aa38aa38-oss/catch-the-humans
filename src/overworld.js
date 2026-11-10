@@ -7,7 +7,7 @@ import { W, H, ctx, C, FONT, text, box, sprite, sfx, waiters, heldDir, clearTap,
 
 export const TILE = 32; // 一格 32 像素（GB 的 16 像素放大兩倍）
 const STEP_MS = 170;
-export const ENCOUNTER_RATE = 0.12; // 在遇敵區每走一步遇到人類的機率
+export const ENCOUNTER_RATE = 0.08; // 在遇敵區每走一步遇到人類的機率
 const DIR = { UP: [0, -1], DOWN: [0, 1], LEFT: [-1, 0], RIGHT: [1, 0] };
 
 /** 畫面狀態：px/py 是走路動畫中的像素位置 */
@@ -15,7 +15,9 @@ export const OW = { px: 0, py: 0, walking: false, banner: null, fade: 0 };
 
 export const currentMap = () => MAPS[G.pos.map];
 const tileAt = (m, x, y) => m.rows[y]?.[x] ?? '#';
-const npcAt = (m, x, y) => m.npcs?.find((n) => n.x === x && n.y === y);
+/** 訓練家被打敗後會坐到旁邊（sit），讓出走道 */
+export const npcPos = (n) => (n.trainer && n.sit && G.flags[n.trainer.id] ? n.sit : n);
+const npcAt = (m, x, y) => m.npcs?.find((n) => npcPos(n).x === x && npcPos(n).y === y);
 
 export function passable(m, x, y) {
   const t = TILES[tileAt(m, x, y)];
@@ -65,6 +67,9 @@ function drawTile(t, x, y, now) {
     case 'f': f('#8cc060'); f('#b08858', 0, 8, T, 4); f('#b08858', 0, 20, T, 4); f('#8c6440', 4, 4, 5, 26); f('#8c6440', 22, 4, 5, 26); break;
     case 'h': f('#9ccc6c'); f('#7cb050', 8, 12, 3, 5); f('#7cb050', 22, 22, 3, 5); break;
     case 'K': f('#c08a50'); f('#8c5c30', 0, T - 8, T, 8); f('#f6f0e0', 5, 5, 22, 12); f('#46b45c', 9, 8, 14, 5); break;
+    case 'M': f('#f4f4f0'); f('#46b45c', 0, 0, T, 6); f('#f08a2c', 0, 6, T, 4); f('#c8ccd4', 0, T - 10, T, 10); f('#d84838', 10, 12, 12, 8); break;
+    case 'D': f('#c8ccd4'); f('#e45a32', 0, 18, T, 5); f('#3c4c64', 6, 2, 20, 30); f('#9ab0c8', 9, 5, 6, 12); f('#9ab0c8', 17, 5, 6, 12); break;
+    case 's': f('#e8e2d2'); f('#3c5ca8', 3, 4, 26, 22); f('#2c4a8c', 3, 4, 26, 6); f('#f4f4f0', 6, 6, 8, 3); break;
     default: f('#000');
   }
 }
@@ -90,7 +95,10 @@ export function drawWorld(now) {
     ctx.fillRect(lx - w / 2, ly - 2, w, 20);
     text(l.text, lx, ly, '#f6f4ea', FONT, 'center');
   }
-  for (const n of m.npcs ?? []) sprite(n.sprite, n.x * TILE - camX + 2, n.y * TILE - camY + 2, 1);
+  for (const n of m.npcs ?? []) {
+    const p = npcPos(n);
+    sprite(n.sprite, p.x * TILE - camX + 2, p.y * TILE - camY + 2, 1, { flip: n.trainer && p.x > G.pos.x });
+  }
   if (m.pen) drawPen(m.pen, camX, camY, now);
   // 主角
   const bob = OW.walking ? Math.abs(Math.sin(now / 60)) * -2 : 0;
@@ -171,6 +179,7 @@ function facing(m) {
  *   { type: 'encounter', area }   遇到野生人類
  *   { type: 'talk', thing }       跟人或看板互動
  *   { type: 'menu' }              按 B 打開選單
+ *   { type: 'notice', text }      提示訊息（例如驅人噴霧用完）
  */
 export async function explore() {
   syncPixels();
@@ -213,9 +222,14 @@ export async function explore() {
         await warpTo(warp);
         continue;
       }
+      // 驅人噴霧：每走一步少一步，用完時提醒
+      if (G.repel > 0) {
+        G.repel--;
+        if (G.repel === 0) return { type: 'notice', text: '驅人噴霧的效果消失了。人類的味道又回來了。' };
+      }
       const area = zoneArea(m, nx, ny);
       if (area && !wasZone) showZoneBanner(m);
-      if (area && !globalThis.__cthNoEncounter && Math.random() < ENCOUNTER_RATE) { // __cthNoEncounter：自動測試用
+      if (area && G.repel === 0 && !globalThis.__cthNoEncounter && Math.random() < ENCOUNTER_RATE) { // __cthNoEncounter：自動測試用
         OW.banner = null;
         return { type: 'encounter', area };
       }

@@ -10,13 +10,14 @@ export const BASE_STRUGGLE = 0.5; // 滿血、標準力道時，每秒掙扎多�
  * @param asleep  人類是否睡著（掙扎力道打七折）
  * @param strength 人類種類的力道（見 humans.js）
  * @param gradeStruggle 肉質等級的力道加成（見 GRADES）
+ * @param ball 寶貝球種類的力道倍率（見 data/items.js，黏膠球 0.7）
  */
-export function createCapture({ hpRatio, asleep = false, strength = 1, gradeStruggle = 1 }) {
+export function createCapture({ hpRatio, asleep = false, strength = 1, gradeStruggle = 1, ball = 1 }) {
   return {
     tight: 0,
     struggle: 0,
     wave: 0.5, // 掙扎的力道起伏 0~1
-    power: BASE_STRUGGLE * strength * gradeStruggle * (0.2 + 0.8 * hpRatio) * (asleep ? 0.7 : 1),
+    power: BASE_STRUGGLE * strength * gradeStruggle * (0.2 + 0.8 * hpRatio) * (asleep ? 0.7 : 1) * ball,
     result: null, // 'caught' | 'escaped'
   };
 }

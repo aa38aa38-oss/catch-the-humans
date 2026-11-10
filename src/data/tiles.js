@@ -24,4 +24,7 @@ export const TILES = {
   f: { name: '柵欄', solid: true },
   h: { name: '牧草地', solid: true },
   K: { name: '牧場管理台', solid: true },
+  M: { name: '超商櫃台', solid: true },
+  D: { name: '列車車門' },
+  s: { name: '座椅', solid: true },
 };

@@ -14,7 +14,7 @@ export async function canConnect() {
  * onOpponent(presence | null) 在對手出現、更新或離開時呼叫。
  * 回傳 { setMine(state), close() }；不能連線時回傳 null。
  */
-export async function openRoom(code, onOpponent) {
+export async function openRoom(code, onOpponent) { // code 例如 'fair-1234'
   const room = await getRoom();
   if (!room) return null;
   let r;

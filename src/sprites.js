@@ -190,6 +190,37 @@ function firefighter() {
   return g.outline();
 }
 
+// ── 訓練家（動物，側面朝右）──
+function rat() {
+  const G1 = '#8a8a96', G2 = '#b4b4be', P = '#f0a0b0';
+  const g = new Grid();
+  g.line(3, 18, 1, 13, P).line(1, 13, 2, 9, P);
+  g.ell(12, 18, 8, 5, G1);
+  g.ell(12, 20, 5, 2.4, G2);
+  g.ell(20, 15, 4.5, 3.8, G1);
+  g.ell(24, 16, 2, 1.6, G2).px(26, 16, P);
+  g.ell(18, 11, 2.2, 2.2, G1).ell(18, 11, 1.2, 1.2, P);
+  g.px(21, 14, K);
+  g.rect(9, 22, 2, 3, P).rect(16, 22, 2, 3, P);
+  g.line(24, 17, 27, 18, '#5a5a64').line(24, 16, 27, 15, '#5a5a64');
+  return g.outline();
+}
+function pigeon() {
+  const B1 = '#8c96a8', B2 = '#b8c0cc', N = '#5aa080', V = '#8a5aa8', O = '#f08a2c', H = '#2c4a8c';
+  const g = new Grid();
+  g.line(11, 22, 10, 26, O).line(15, 22, 16, 26, O);
+  g.ell(5, 15, 4, 2.4, '#5a6478');
+  g.ell(12, 16, 8, 6, B1);
+  g.ell(11, 15, 5, 3, B2);
+  g.line(7, 17, 15, 19, '#5a6478');
+  g.ell(18, 10, 3.4, 3.6, N).ell(17, 12, 2.6, 2, V);
+  g.ell(20, 7, 3.4, 3.2, B1);
+  g.px(21, 6, O).px(23, 7, '#d8a070').px(24, 8, '#d8a070');
+  // 列車長帽子
+  g.rect(17, 2, 7, 2, H).rect(16, 4, 9, 1, '#1c2a50').px(20, 2, '#f0d038');
+  return g.outline();
+}
+
 // ── 地圖上的路人（正面）──
 function person({ hat, hair, shirt, pants, extra }) {
   const S = '#f0c098';
@@ -214,7 +245,7 @@ const sales = () => person({
   extra: (g) => g.rect(13, 12, 2, 7, '#d83830').rect(19, 15, 5, 3, '#4c88e0'),
 });
 
-const DRAW = { STAFF: staff, SALES: sales, COW: cow, PIG: pig, SHEEP: sheep, CHICKEN: chicken, ACE: ace, THING: thing, IRON_FAN: ironFan, FIREFIGHTER: firefighter };
+const DRAW = { RAT: rat, PIGEON: pigeon, STAFF: staff, SALES: sales, COW: cow, PIG: pig, SHEEP: sheep, CHICKEN: chicken, ACE: ace, THING: thing, IRON_FAN: ironFan, FIREFIGHTER: firefighter };
 const cache = {};
 
 /** 回傳 28×28 的角色圖（canvas） */

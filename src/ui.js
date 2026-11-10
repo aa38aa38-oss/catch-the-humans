@@ -118,8 +118,16 @@ const KEYMAP = {
 const DIRS = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
 const held = [];
 let tapped = null; // 很快按一下就放開的方向，也要算走一步
-const hold = (k) => { if (DIRS.includes(k)) { tapped = k; if (!held.includes(k)) held.push(k); } };
-const release = (k) => { const i = held.indexOf(k); if (i >= 0) held.splice(i, 1); };
+let aHeld = false; // 按住 A：文字快轉
+const hold = (k) => {
+  if (k === 'A') aHeld = true;
+  if (DIRS.includes(k)) { tapped = k; if (!held.includes(k)) held.push(k); }
+};
+const release = (k) => {
+  if (k === 'A') aHeld = false;
+  const i = held.indexOf(k);
+  if (i >= 0) held.splice(i, 1);
+};
 /** 目前要走的方向：按住的方向優先，沒有的話看剛剛有沒有點一下 */
 export function heldDir() {
   const d = held.at(-1) ?? tapped;
@@ -137,7 +145,7 @@ window.addEventListener('keyup', (e) => {
   const k = KEYMAP[e.key];
   if (k) release(k);
 });
-window.addEventListener('blur', () => (held.length = 0));
+window.addEventListener('blur', () => { held.length = 0; aHeld = false; });
 // ───────── 搖桿：外觀是十字鍵，用起來像手遊的虛擬搖桿 ─────────
 // 在左半邊任何地方按下都算，以十字鍵中心為圓心，手指往哪推就往哪走；按住不放可以直接滑動換方向。
 const zone = document.querySelector('.left');
@@ -220,16 +228,41 @@ function wrap(text, maxW) {
   return lines;
 }
 
+// 文字速度（設定選單可以改），每個字之間的毫秒數
+export const TEXT_SPEEDS = { 慢: 50, 中: 30, 快: 10 };
+let textSpeed = '中';
+try { textSpeed = TEXT_SPEEDS[localStorage.getItem('cth-textspeed')] ? localStorage.getItem('cth-textspeed') : '中'; } catch {}
+export const getTextSpeed = () => textSpeed;
+export function setTextSpeed(v) {
+  textSpeed = v;
+  try { localStorage.setItem('cth-textspeed', v); } catch {}
+}
+
 function typeOut() {
   return new Promise((res) => {
-    let skip = false;
+    let skip = aHeld;
     const f = (k) => { if (k === 'A' || k === 'B') skip = true; };
     waiters.add(f);
     const iv = setInterval(() => {
       const T = UI.text;
-      T.n = skip ? T.total : T.n + 1;
+      T.n = skip || aHeld ? T.total : T.n + 1;
       if (T.n >= T.total) { clearInterval(iv); waiters.delete(f); res(); }
-    }, 30);
+    }, TEXT_SPEEDS[textSpeed]);
+  });
+}
+
+/** 等玩家按 A/B 翻頁；按住 A 不放時，每頁停一下就自動翻（快轉） */
+function waitPage() {
+  return new Promise((res) => {
+    let timer = null;
+    const done = () => { waiters.delete(f); clearInterval(timer); res(); };
+    const f = (k) => { if (k === 'A' || k === 'B') done(); };
+    waiters.add(f);
+    let heldFor = 0;
+    timer = setInterval(() => {
+      heldFor = aHeld ? heldFor + 50 : 0;
+      if (heldFor >= 250) done();
+    }, 50);
   });
 }
 
@@ -242,7 +275,7 @@ export async function say(text, { wait = true, width = TEXT_W } = {}) {
     await typeOut();
     if (wait || i + 2 < lines.length) {
       UI.text.arrow = true;
-      await waitKey(['A', 'B']);
+      await waitPage();
       sfx('blip');
     }
   }

@@ -2,6 +2,7 @@
 // 存檔有版本號，之後格式改變時寫一個 migrate 步驟，舊存檔就能升級而不會壞掉。
 import { createIndividual, defaultMoves } from './individual.js';
 import { START, FIRST_RESPAWN, MAPS } from './data/maps/index.js';
+import { ITEMS, STARTING_BAG, STARTING_MONEY } from './data/items.js';
 import { ANIMALS, HUMANS } from './data/index.js';
 
 const KEY = 'cth-save';
@@ -17,14 +18,20 @@ export const G = {
   nextNo: 1,
   pos: { ...START }, // 目前在地圖上的位置
   respawn: { ...FIRST_RESPAWN }, // 最後一次休息的回復點
-  money: 0, // 出貨賺的錢
+  money: 0, // 出貨、打贏訓練家賺的錢
+  bag: {}, // 背包：道具 id → 數量
+  repel: 0, // 驅人噴霧剩幾步
+  flags: {}, // 劇情進度：打贏了哪些訓練家、拿到哪些徽章
+  seen: [], // 圖鑑：遇過的人類種類
+  best: {}, // 圖鑑：每種人類抓過的最高肉質
   pvp: { w: 0, l: 0, d: 0 },
 };
 
 export function newGame(animalId) {
   Object.assign(G, {
     v: SAVE_VERSION, animal: createIndividual('animal', animalId, 5), humans: [], team: [], nextNo: 1,
-    pos: { ...START }, respawn: { ...FIRST_RESPAWN }, money: 0, pvp: { w: 0, l: 0, d: 0 },
+    pos: { ...START }, respawn: { ...FIRST_RESPAWN }, money: STARTING_MONEY, bag: { ...STARTING_BAG }, repel: 0,
+    flags: {}, seen: [], best: {}, pvp: { w: 0, l: 0, d: 0 },
   });
   save();
 }
@@ -41,6 +48,21 @@ export function healAll() {
 }
 /** 目前的隊伍（個體陣列），家畜永遠在第一個 */
 export const teamInds = () => [G.animal, ...G.team.map(findHuman).filter(Boolean)];
+
+/** 從牧場裡的人類算出每種的最高肉質（舊存檔升級用） */
+function bestOf(humans) {
+  const order = ['CHOICE', 'PRIME', 'A5'];
+  const best = {};
+  for (const h of humans) if (order.indexOf(h.gradeId) > order.indexOf(best[h.species] ?? '')) best[h.species] = h.gradeId;
+  return best;
+}
+
+/** 背包加減道具 */
+export const itemCount = (id) => G.bag[id] ?? 0;
+export function addItem(id, n = 1) {
+  G.bag[id] = Math.max(0, itemCount(id) + n);
+  if (!G.bag[id]) delete G.bag[id];
+}
 
 export function save() {
   try {
@@ -82,6 +104,12 @@ export function load() {
     pos: d.pos && MAPS[d.pos.map] ? d.pos : { ...START },
     respawn: d.respawn && MAPS[d.respawn.map] ? d.respawn : { ...FIRST_RESPAWN },
     money: d.money ?? 0,
+    // 背包是後來才加的：舊存檔送一份新手禮包
+    bag: d.bag ? Object.fromEntries(Object.entries(d.bag).filter(([id, n]) => ITEMS[id] && n > 0)) : { ...STARTING_BAG },
+    repel: d.repel ?? 0,
+    flags: d.flags ?? {},
+    seen: d.seen ?? [...new Set((d.humans ?? []).map((h) => h.species))],
+    best: d.best ?? bestOf(d.humans ?? []),
     pvp: { w: 0, l: 0, d: 0, ...d.pvp },
   });
   G.team = G.team.filter((uid) => findHuman(uid)).slice(0, TEAM_HUMANS);

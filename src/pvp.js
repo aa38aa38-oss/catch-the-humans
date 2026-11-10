@@ -10,15 +10,24 @@ import { hash32 } from './rng.js';
 export const PVP_LEVEL = 50;
 export const TEAM_MAX = 5; // 家畜 1 + 人類 4
 
+/**
+ * 對戰模式：
+ *   fair 公平賽：肉質、強化都不算，只比隊伍搭配
+ *   open 無差別賽：肉質、強化全部照算
+ * 兩種模式用不同的房間，所以同一個房間裡一定是同一種模式。
+ */
+export const MODES = { fair: '公平賽', open: '無差別賽' };
+
 /** 我方要公開的狀態 */
-export function myPresence({ nonce, team, acts = [] }) {
-  return { app: 'cth', v: DATA_VERSION, nonce, team: team.slice(0, TEAM_MAX).map(toWire), acts };
+export function myPresence({ nonce, team, mode = 'fair', acts = [] }) {
+  return { app: 'cth', v: DATA_VERSION, nonce, mode, team: team.slice(0, TEAM_MAX).map(toWire), acts };
 }
 
 /** 檢查對手狀態是否可以開打；回傳 { ok, reason } */
 export function checkOpponent(p) {
   if (!p || p.app !== 'cth' || typeof p.nonce !== 'string') return { ok: false, reason: 'notGame' };
   if (p.v !== DATA_VERSION) return { ok: false, reason: 'version' };
+  if (!MODES[p.mode]) return { ok: false, reason: 'mode' };
   if (!Array.isArray(p.team) || p.team.length < 1 || p.team.length > TEAM_MAX) return { ok: false, reason: 'team' };
   if (p.team[0]?.k !== 'a') return { ok: false, reason: 'team' };
   if (p.team.some((w, i) => !fromWire(w, PVP_LEVEL, i))) return { ok: false, reason: 'team' };
@@ -32,7 +41,11 @@ export function checkOpponent(p) {
 export function setupBattle(mine, theirs) {
   const meFirst = mine.nonce < theirs.nonce;
   const order = meFirst ? [mine, theirs] : [theirs, mine];
-  const teams = order.map((p) => p.team.map((w, i) => fromWire(w, PVP_LEVEL, i)));
+  const fair = mine.mode !== 'open';
+  const teams = order.map((p) => p.team.map((w, i) => {
+    const ind = fromWire(w, PVP_LEVEL, i);
+    return fair ? { ...ind, gradeId: 'CHOICE', boost: 0 } : ind;
+  }));
   const seed = hash32(`${order[0].nonce}|${order[1].nonce}|${DATA_VERSION}`);
   return { state: createBattle({ mode: 'pvp', seed, teams, level: PVP_LEVEL }), mySide: meFirst ? 0 : 1 };
 }

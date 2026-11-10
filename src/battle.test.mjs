@@ -7,6 +7,7 @@ import { ANIMAL_ORDER } from './data/animals.js';
 import { createIndividual, toWire, fromWire, defaultMoves, movesLearnedAt, learnableMoves } from './individual.js';
 import { MAPS, START, FIRST_RESPAWN } from './data/maps/index.js';
 import { synthesize, synthBlock, shipPrice, MAX_BOOST } from './ranch.js';
+import { ITEMS, SHOP, STARTING_BAG } from './data/items.js';
 import { makeFighter } from './battle.js';
 import { TILES } from './data/tiles.js';
 import { myPresence, checkOpponent, setupBattle, encodeAct, decodeAct, mustChoose, stepActions } from './pvp.js';
@@ -33,7 +34,8 @@ for (const sp of [...Object.values(ANIMALS), ...Object.values(HUMANS)]) {
 for (const a of Object.values(ANIMALS)) for (const m of a.moves) assert.ok(MOVES[m], `${a.name} 的技能 ${m} 不存在`);
 for (const [id, area] of Object.entries(AREAS)) for (const e of area.encounters) assert.ok(HUMANS[e.species], `地區 ${id} 的 ${e.species} 不存在`);
 // ── 地圖完整性 ──
-const walkable = (m, x, y) => TILES[m.rows[y]?.[x]] && !TILES[m.rows[y][x]].solid && !m.npcs?.some((n) => n.x === x && n.y === y);
+// 訓練家打贏就會讓開，所以不算擋路；一般 NPC 會擋路
+const walkable = (m, x, y) => TILES[m.rows[y]?.[x]] && !TILES[m.rows[y][x]].solid && !m.npcs?.some((n) => !n.trainer && n.x === x && n.y === y);
 for (const [id, m] of Object.entries(MAPS)) {
   const w = m.rows[0].length;
   m.rows.forEach((r, y) => {
@@ -47,7 +49,13 @@ for (const [id, m] of Object.entries(MAPS)) {
     assert.ok(walkable(MAPS[wp.to], wp.tx, wp.ty), `地圖 ${id} 傳送到 ${wp.to} (${wp.tx},${wp.ty}) 是牆`);
     assert.ok(!MAPS[wp.to].warps?.some((v) => v.x === wp.tx && v.y === wp.ty), `傳送落點不能又是傳送點（會無限傳送）`);
   }
-  for (const n of m.npcs ?? []) assert.ok(TILES[m.rows[n.y][n.x]] && !TILES[m.rows[n.y][n.x]].solid, `地圖 ${id} 的 NPC 站在牆裡`);
+  for (const n of m.npcs ?? []) {
+    assert.ok(TILES[m.rows[n.y][n.x]] && !TILES[m.rows[n.y][n.x]].solid, `地圖 ${id} 的 NPC 站在牆裡`);
+    if (n.trainer) {
+      for (const t of n.trainer.team) assert.ok(HUMANS[t.species] && GRADES.some((g) => g.id === t.gradeId), `訓練家 ${n.trainer.name} 的隊伍有問題`);
+      if (n.sit) assert.ok(!TILES[m.rows[n.sit.y][n.sit.x]].solid, `訓練家 ${n.trainer.name} 坐的位置是牆`);
+    }
+  }
 }
 for (const p of [START, FIRST_RESPAWN]) assert.ok(walkable(MAPS[p.map], p.x, p.y), `起點 / 回復點 ${p.map} (${p.x},${p.y}) 走不到`);
 // 每張地圖的每一格可以走的地方，都要能從起點走到（不會有被困住的區域）
@@ -69,6 +77,7 @@ for (const p of [START, FIRST_RESPAWN]) assert.ok(walkable(MAPS[p.map], p.x, p.y
       if (walkable(m, x, y)) assert.ok(seen.has(`${id},${x},${y}`), `地圖 ${id} 的 (${x},${y}) 從起點走不到`);
     }));
 }
+for (const id of [...SHOP, ...Object.keys(STARTING_BAG)]) assert.ok(ITEMS[id], `道具 ${id} 不存在`);
 assert.equal(GRADES.reduce((s, g) => s + g.rate, 0).toFixed(5), '1.00000', '肉質機率總和要是 100%');
 
 const human = (sp, lv = 5, g = 'CHOICE') => createIndividual('human', sp, lv, g);
@@ -141,6 +150,12 @@ assert.notEqual(playOut(42), playOut(43), '不同種子要有不同結果');
   assert.equal(checkOpponent({ ...pb, team: [{ k: 'h', s: 'NOPE' }] }).reason, 'team');
   assert.ok(JSON.stringify(myPresence({ nonce: 'x'.repeat(10), team: teamA, acts: Array(150).fill('m1') })).length < 4096, '狀態要小於 4KB');
 
+  // 公平賽：肉質、強化都不算；無差別賽照算
+  const fairA = setupBattle({ ...pa, mode: 'fair' }, { ...pb, mode: 'fair' });
+  assert.ok(fairA.state.sides.every((s) => s.team.every((f) => f.gradeId === 'CHOICE' && f.boost === 0)), '公平賽不算肉質');
+  const openA = setupBattle({ ...pa, mode: 'open' }, { ...pb, mode: 'open' });
+  assert.ok(openA.state.sides.some((s) => s.team.some((f) => f.gradeId === 'A5')), '無差別賽照算肉質');
+  assert.equal(checkOpponent({ ...pb, mode: 'weird' }).reason, 'mode');
   const A = setupBattle(pa, pb);
   const B = setupBattle(pb, pa);
   assert.equal(A.mySide, 0);
