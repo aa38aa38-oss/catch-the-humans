@@ -252,6 +252,7 @@ const validSwitch = (state, s, slot) =>
 export function sanitize(state, s, a) {
   if (a?.type === 'switch' && validSwitch(state, s, a.slot)) return a;
   if (a?.type === 'forfeit') return a;
+  if (a?.type === 'pass') return a; // 這回合不出招（例如丟寶貝球失敗）；連線傳不出這種行動
   const f = active(state, s);
   if (a?.type === 'move' && Number.isInteger(a.index) && f.pp[a.index] > 0) return a;
   return { type: 'move', index: firstUsable(f) }; // 用完的招式、不存在的招式 → 第一個還能用的，全用完就垂死掙扎
@@ -274,7 +275,7 @@ function checkFaints(state, events) {
 
 /**
  * 跑一個回合。actions = [0 號方的行動, 1 號方的行動]
- * 行動：{type:'move', index} 用第幾招 / {type:'switch', slot} 換成隊伍第幾隻 / {type:'forfeit'} 投降
+ * 行動：{type:'move', index} 用第幾招 / {type:'switch', slot} 換成隊伍第幾隻 / {type:'forfeit'} 投降 / {type:'pass'} 不出招
  * 回傳事件陣列；結果看 state.winner 與 state.need
  */
 export function runTurn(state, actions) {

@@ -19,7 +19,7 @@ for (const [id, h] of Object.entries(HUMANS)) {
   assert.ok(['FIRE', 'EARTH', 'WIND', 'WATER'].includes(h.element), `${h.name} 的屬性`);
   assert.ok(!nos.has(h.no), `圖鑑編號重複：${h.no}`);
   nos.add(h.no);
-  for (const k of ['appear', 'caught', 'escape']) assert.ok(h.lines[k]?.length, `${h.name} 缺少 ${k} 台詞`);
+  for (const k of ['appear', 'caught', 'breakout']) assert.ok(h.lines[k]?.length, `${h.name} 缺少 ${k} 台詞`);
 }
 for (const [id, m] of Object.entries(MOVES)) assert.ok(Number.isInteger(m.pp) && (m.pp > 0 || id === 'STRUGGLE'), `技能 ${id} 要有 PP`);
 for (const sp of [...Object.values(ANIMALS), ...Object.values(HUMANS)]) {
@@ -93,6 +93,16 @@ for (let i = 0; i < 2000; i++) {
   turnsTotal += turns;
 }
 console.log(`野生戰鬥平均 ${(turnsTotal / 2000).toFixed(1)} 回合`);
+
+// ── 丟球失敗：這回合自己不出招，對方照常出手 ──
+{
+  const st = createBattle({ mode: 'wild', seed: 5, teams: [[animal('COW')], [human('ACE')]] });
+  const hp0 = active(st, 0).hp;
+  const ev = runTurn(st, [{ type: 'pass' }, { type: 'move', index: 0 }]);
+  assert.ok(!ev.some((e) => e.t === 'lunge' && e.side === 0), '丟球失敗的回合自己不出手');
+  assert.ok(active(st, 0).hp < hp0 || ev.some((e) => e.text === '但是沒有打中！'), '對方照常出手');
+  assert.equal(decodeAct(encodeAct({ type: 'pass' })), null, '連線傳不出「不出招」');
+}
 
 // ── 換人 ──
 {

@@ -734,8 +734,9 @@ async function wildBattle(areaId) {
         scene = 'battle';
         return afterWild(joined, expReward(e));
       }
-      await say(fill(pick(HUMANS[e.species].lines.escape), v));
-      return afterWild(joined, 0);
+      // 收服失敗：人類撐破球，戰鬥繼續，這一回合換對方出手
+      await say(fill(pick(HUMANS[e.species].lines.breakout), v));
+      action = { type: 'pass' };
     } else {
       await say(TEXT.run);
       return afterWild(joined, 0);
@@ -900,8 +901,9 @@ async function capture(e) {
   B.ball.t = 0;
   await tween(320, (k) => (B.ball.t = k));
   B.ball = null;
-  await tween(450, (k) => (v.x = k * 200));
-  v.vis = false;
+  // 撐破球之後人類還在場上，抖一下表示掙脫
+  await tween(300, (k) => (v.x = Math.sin(k * Math.PI * 4) * 6));
+  v.x = 0;
   return 'escaped';
 }
 
