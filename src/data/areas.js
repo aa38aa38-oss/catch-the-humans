@@ -11,7 +11,7 @@ export const AREAS = {
       e('ACE', 2, 3, 5), e('ASH', 2, 3, 5), e('CHEF', 2, 3, 5), // 火
       e('COLONEL', 2, 3, 5), e('RONALD', 2, 3, 5), // 土、風
       e('IRON_FAN', 1, 3, 4), e('MOUNTAIN_MONKEY', 1, 4, 5),
-      e('DANCING_UNCLE', 2, 3, 5), e('WEATHERMAN', 2, 3, 5), e('MASON', 2, 3, 5), e('CHEN_CAIYOU', 2, 3, 5), e('TONGSHEN', 2, 3, 5), // 第三批
+      e('DANCING_UNCLE', 2, 3, 5), e('WEATHERMAN', 2, 3, 5), e('MASON', 2, 3, 5), e('CHEN_CAIYOU', 2, 3, 5), e('TONGSHEN', 2, 3, 5), e('CHEN_PINGWEI', 2, 3, 5), // 第三批
     ],
   },
   TPE_HALL_CROWD: {
@@ -21,7 +21,7 @@ export const AREAS = {
       e('RAFTING', 2, 5, 8), e('FIREFIGHTER', 1, 5, 8), // 水
       e('RYOTSU', 2, 5, 8), e('THING', 1, 6, 8), e('COLONEL', 1, 5, 8), // 土
       e('MOUNTAIN_MONKEY', 2, 5, 8), e('IRON_FAN', 2, 5, 8), e('BATMAN', 1, 6, 8), // 風
-      e('CHEN_PINGWEI', 2, 5, 8), e('RAMSAY', 2, 5, 8), e('ELSA', 2, 5, 8), e('BIAO_GE', 2, 5, 8), e('ZHUGE', 2, 5, 8), // 第三批
+      e('RAMSAY', 2, 5, 8), e('ELSA', 2, 5, 8), e('BIAO_GE', 2, 5, 8), e('ZHUGE', 2, 5, 8), // 第三批
     ],
   },
   TPE_PLATFORM_QUEUE: {
