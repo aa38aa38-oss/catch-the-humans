@@ -99,6 +99,32 @@ function read() {
 
 export const hasSave = () => !!read()?.animal;
 
+// ───────── 匯出／匯入存檔（換手機用）─────────
+// 存檔碼 = 「CTH1-」+ 存檔內容（JSON）轉成 base64。整串複製到新手機貼上就能接著玩。
+const CODE_HEAD = 'CTH1-';
+const toB64 = (str) => btoa(String.fromCharCode(...new TextEncoder().encode(str)));
+const fromB64 = (b64) => new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+
+/** 目前進度的存檔碼 */
+export function exportCode() {
+  save();
+  return CODE_HEAD + toB64(JSON.stringify(G));
+}
+
+/** 讀入存檔碼。成功回傳 true，碼不對回傳 false（原本的存檔不會被動到） */
+export function importCode(code) {
+  const raw = String(code ?? '').replace(/\s+/g, '');
+  if (!raw.startsWith(CODE_HEAD)) return false;
+  let d;
+  try { d = migrate(JSON.parse(fromB64(raw.slice(CODE_HEAD.length)))); } catch { return false; }
+  if (!d?.animal || !ANIMALS[d.animal.species]) return false;
+  let old = null;
+  try { old = localStorage.getItem(KEY); localStorage.setItem(KEY, JSON.stringify(d)); } catch { return false; }
+  if (load()) return true;
+  try { if (old) localStorage.setItem(KEY, old); else localStorage.removeItem(KEY); } catch {}
+  return false;
+}
+
 export function load() {
   const d = read();
   if (!d?.animal || !ANIMALS[d.animal.species]) return false;

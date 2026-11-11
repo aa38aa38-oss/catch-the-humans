@@ -135,7 +135,9 @@ export function heldDir() {
   return d ?? null;
 }
 export const clearTap = () => (tapped = null);
+const typing = (e) => e.target?.closest?.('.panel');
 window.addEventListener('keydown', (e) => {
+  if (typing(e)) return;
   const k = KEYMAP[e.key];
   if (!k) return;
   e.preventDefault();
@@ -210,7 +212,42 @@ for (const btn of document.querySelectorAll('[data-key]')) {
   btn.addEventListener('pointerleave', up);
   btn.addEventListener('pointercancel', up);
 }
-document.addEventListener('contextmenu', (e) => e.preventDefault());
+document.addEventListener('contextmenu', (e) => { if (!typing(e)) e.preventDefault(); });
+
+// ───────── 文字輸入面板（匯出／匯入存檔用）─────────
+// 畫布不能打字，所以蓋一層網頁的文字框上去。回傳使用者按的按鈕索引（取消 = -1）和文字框內容。
+export function panel({ title, note = '', value = '', readonly = false, buttons }) {
+  return new Promise((resolve) => {
+    const el = document.createElement('div');
+    el.className = 'panel';
+    el.innerHTML = `<div class="panel-box" role="dialog" aria-modal="true"><h2></h2><p></p><textarea spellcheck="false" autocomplete="off"></textarea><div class="panel-msg" aria-live="polite"></div><div class="panel-btns"></div></div>`;
+    el.querySelector('h2').textContent = title;
+    el.querySelector('p').textContent = note;
+    const ta = el.querySelector('textarea');
+    ta.value = value;
+    ta.readOnly = readonly;
+    const msg = el.querySelector('.panel-msg');
+    const done = (i) => { el.remove(); resolve({ i, value: ta.value }); };
+    buttons.forEach((b, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = b.label;
+      btn.addEventListener('click', async () => {
+        if (b.onClick) { const keep = await b.onClick(ta, (t) => (msg.textContent = t)); if (keep) return; }
+        done(b.cancel ? -1 : i);
+      });
+      el.querySelector('.panel-btns').append(btn);
+    });
+    document.body.append(el);
+    if (readonly) { ta.focus(); ta.select(); } else ta.focus();
+  });
+}
+
+/** 複製文字：先用剪貼簿 API，不行就用舊方法；都不行回傳 false */
+export async function copyText(ta) {
+  try { await navigator.clipboard.writeText(ta.value); return true; } catch {}
+  try { ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length); return document.execCommand('copy'); } catch { return false; }
+}
 
 // ───────── 文字框 ─────────
 export const UI = { text: null, menu: null };

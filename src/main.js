@@ -14,6 +14,7 @@ import { createIndividual, nameOf, movesLearnedAt, MOVE_SLOTS } from './individu
 import { canConnect, openRoom } from './net.js';
 import { myPresence, checkOpponent, setupBattle, encodeAct, mustChoose, stepActions } from './pvp.js';
 import { randomId } from './rng.js';
+import { exportCode, importCode } from './save.js';
 import { G, save, load, hasSave, newGame, teamInds, findHuman, findInd, healAll, TEAM_HUMANS } from './save.js';
 import { explore, drawWorld, placeAt } from './overworld.js';
 import { synthesize, shipPrice, SYNTH_MATERIALS, MAX_BOOST } from './ranch.js';
@@ -23,6 +24,7 @@ import { SIZE } from './sprites.js';
 import {
   W, H, ctx, C, ELEMENT_COL, GRADE_COL, BIG, FONT, UI, TEXT_X, sleep, ease, tween, loadFont, sfx, waiters, waitKey,
   waitUntil, say, show, clearText, menu, box, text, chip, sprite, hpBar, drawText, drawMenu, ball, TEXT_SPEEDS, getTextSpeed, setTextSpeed,
+  panel, copyText,
 } from './ui.js';
 
 const pad3 = (n) => String(n).padStart(3, '0');
@@ -364,11 +366,18 @@ async function titleScreen() {
   clearText();
   await waitKey(['A']);
   sfx('blip');
-  if (hasSave()) {
-    const i = await menu(['繼續', '重新開始'], { x: 96, y: 128, w: 128, h: 72, rowH: 26 }, { cancel: false });
-    if (i === 0 && load()) return world();
+  for (;;) {
+    const saved = hasSave();
+    const items = saved ? ['繼續', '重新開始', '匯入存檔'] : ['新遊戲', '匯入存檔'];
+    const i = await menu(items, { x: 96, y: 128, w: 128, h: saved ? 98 : 72, rowH: 26 }, { cancel: false });
+    if (items[i] === '繼續' && load()) return world();
+    if (items[i] === '匯入存檔') {
+      if (await importSave()) return world();
+      continue;
+    }
+    if (items[i] === '重新開始' && (await menu(['重新開始', '算了'], { x: 180, y: 96, w: 140, h: 96, rowH: 30 }, { cancel: false })) !== 0) continue;
+    return selectAnimal();
   }
-  return selectAnimal();
 }
 
 async function selectAnimal() {
@@ -537,7 +546,7 @@ async function worldMenu() {
     if (pickd === '背包') await fieldBag();
     if (pickd === '人類圖鑑') await speciesDex();
     if (pickd === '連線對戰') await pvpLobby();
-    if (pickd === '設定') await settings();
+    if (pickd === '設定' && (await settings()) === 'imported') { placeAt(G.pos); return null; }
     if (pickd === '存檔') {
       save();
       scene = 'world';
@@ -892,6 +901,56 @@ async function speciesDex() {
 }
 
 async function settings() {
+  for (;;) {
+    show('換手機時：舊手機「匯出存檔」，新手機「匯入存檔」。');
+    const i = await menu(['文字速度', '匯出存檔', '匯入存檔'], { x: 150, y: 80, w: 170, h: 112, rowH: 28 });
+    if (i < 0) return clearText();
+    if (i === 0) await textSpeedSetting();
+    if (i === 1) await exportSave();
+    if (i === 2 && (await importSave())) return 'imported';
+  }
+}
+
+// ───────── 匯出／匯入存檔（換手機用）─────────
+async function exportSave() {
+  clearText();
+  await panel({
+    title: '匯出存檔',
+    note: '把下面這一整串複製起來（可以先傳到 LINE 給自己），到新手機打開遊戲，在標題畫面選「匯入存檔」貼上。',
+    value: exportCode(),
+    readonly: true,
+    buttons: [
+      { label: '複製', onClick: async (ta, say) => { say((await copyText(ta)) ? '已複製！' : '自動複製失敗，請長按文字框，選「全選」再「複製」。'); return true; } },
+      { label: '關閉', cancel: true },
+    ],
+  });
+}
+
+/** 成功匯入回傳 true（G 已經換成匯入的進度） */
+async function importSave() {
+  clearText();
+  if (hasSave()) {
+    await say('注意：匯入後，這支手機上原本的進度會被蓋掉。');
+    if ((await menu(['繼續匯入', '算了'], { x: 180, y: 96, w: 140, h: 96, rowH: 30 })) !== 0) return false;
+  }
+  const r = await panel({
+    title: '匯入存檔',
+    note: '在下面長按，選「貼上」，把舊手機匯出的整串文字貼進來。',
+    buttons: [
+      { label: '匯入', onClick: async (ta, say) => {
+        if (importCode(ta.value)) return false;
+        say('這串文字讀不出來。請確認有整串複製（開頭是 CTH1-），沒有少字。');
+        return true;
+      } },
+      { label: '取消', cancel: true },
+    ],
+  });
+  if (r.i < 0) return false;
+  await say(`匯入成功！歡迎回來，${nameOf(G.animal)}。`);
+  return true;
+}
+
+async function textSpeedSetting() {
   const speeds = Object.keys(TEXT_SPEEDS);
   show(`文字速度：目前是「${getTextSpeed()}」`);
   const i = await menu(speeds.map((s) => `文字速度：${s}`), { x: 150, y: 80, w: 170, h: 112, rowH: 28 }, { start: speeds.indexOf(getTextSpeed()) });

@@ -4,3 +4,4 @@ set -e
 cd "$(dirname "$0")/.."
 node src/elements.test.mjs
 node src/battle.test.mjs | tail -1
+node src/save.test.mjs
