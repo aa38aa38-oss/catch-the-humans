@@ -23,4 +23,5 @@
 - 測試：`scripts/test.sh`（資料完整性、地圖連通、戰鬥、連線同步都會檢查）
 - 發布：`scripts/build-artifact.sh`，再用 Artifact 工具發布 `dist/index.html`，`root` 設為 `dist`，`files` 用腳本印出的清單。
   - 遊戲網址（更新同一個）：https://claude.ai/artifact/18T75fpgM7C7kKjF2vVYNU （要帶 `url` 參數更新）
-- 開發分支：`claude/inspiring-rubin-460bvw`，改完 commit 並 push。
+- 開發分支：用這次對話指定的分支，改完 commit 並 push。
+  - 每個新對話的分支可能停在舊版本。開工前先 `git fetch origin`，找出最新的 `claude/*` 分支（`git log --oneline --all -3`），用 `git merge --ff-only` 接上，再開始改。
