@@ -371,6 +371,95 @@ const hanzo = () => human({ shirt: '#2a2a34', pants: '#2a2a34', arms: '#2a2a34',
   g.px(24, 18, '#9aa0a8').px(23, 19, '#9aa0a8').px(25, 19, '#9aa0a8').px(24, 20, '#9aa0a8').px(24, 19, '#2a2a34');
 } });
 
+// ── 第三批野生人類（正面）──
+const chenPingwei = () => human({ shirt: '#3a3a44', pants: '#2c3c70', hair: '#2a2024', extra: (g) => {
+  g.rect(11, 6, 2, 1, '#d83830').rect(16, 6, 2, 1, '#d83830').rect(12, 11, 5, 2, '#a01818');
+  g.rect(21, 17, 6, 3, '#2a2a34').rect(21, 16, 6, 1, '#8a8e98');
+  g.px(3, 4, '#f06018').px(4, 3, '#f06018').px(24, 3, '#f06018').px(25, 4, '#f06018');
+} });
+const mustang = () => human({ shirt: '#2c3c70', pants: '#2c3c70', hair: '#2a2024', arms: '#2c3c70', extra: (g) => {
+  g.rect(10, 13, 9, 1, '#f0d038').px(12, 15, '#f0d038').px(16, 15, '#f0d038');
+  g.ell(20, 21, 1.6, 1.4, '#f4f4f0').px(20, 21, '#d83830');
+  g.ell(23, 17, 2.4, 2.4, '#f06018').ell(23, 17, 1.2, 1.2, '#f8d038');
+} });
+const ramsay = () => human({ shirt: '#f4f4f0', pants: '#2a2a34', hair: '#e8c060', extra: (g) => {
+  g.px(12, 15, '#2a2a34').px(16, 15, '#2a2a34').px(12, 18, '#2a2a34').px(16, 18, '#2a2a34');
+  g.rect(12, 11, 5, 2, '#a01818');
+  g.rect(21, 16, 5, 4, '#f4e0b0').rect(21, 20, 5, 1, '#c89050');
+} });
+const tongshen = () => human({ shirt: '#d83830', pants: '#3a3a44', hair: '#2a2024', wide: 2, extra: (g) => {
+  g.ell(14, 17, 8.4, 6.4, '#d83830').ell(14, 8, 5, 5, '#f0c098');
+  g.px(12, 8, K).px(16, 8, K).rect(12, 11, 5, 2, '#a01818');
+  g.rect(9, 5, 11, 1, '#2a2a34').rect(8, 6, 2, 3, '#2a2a34').rect(19, 6, 2, 3, '#2a2a34');
+  g.rect(2, 22, 24, 2, '#7a5030');
+} });
+const kisame = () => human({ skin: '#7aa0b8', shirt: '#2a2a34', pants: '#2a2a34', arms: '#2a2a34', extra: (g) => {
+  g.ell(14, 4, 5, 2.4, '#3c5ca8').px(10, 2, '#3c5ca8').px(18, 2, '#3c5ca8');
+  g.px(11, 9, '#5a7a90').px(17, 9, '#5a7a90').rect(12, 11, 5, 1, '#f4f4f0');
+  g.px(12, 16, '#d83830').px(16, 19, '#d83830');
+  g.line(22, 4, 25, 26, '#3c5ca8').line(23, 4, 26, 26, '#5a8ac8');
+} });
+const elsa = () => human({ shirt: '#8ad0f0', pants: '#8ad0f0', arms: '#c8ecf8', extra: (g) => {
+  g.ell(14, 4, 5.4, 2.6, '#f8ecb0').rect(18, 6, 2, 12, '#f8ecb0');
+  g.ell(14, 23, 7, 4, '#8ad0f0');
+  g.px(3, 6, '#f4f4f0').px(4, 5, '#c8ecf8').px(25, 9, '#f4f4f0').px(24, 10, '#c8ecf8').px(4, 18, '#f4f4f0');
+} });
+const bruceLee = () => human({ shirt: '#f0d038', pants: '#f0d038', arms: '#f0c098', hair: '#2a2024', extra: (g) => {
+  g.ell(14, 4, 5, 2, '#2a2024'); g.line(10, 13, 10, 25, '#2a2a34').line(18, 13, 18, 25, '#2a2a34');
+  g.line(22, 12, 24, 17, '#7a5030').line(24, 17, 26, 13, '#7a5030');
+} });
+const chenCaiyou = () => {
+  const g = new Grid();
+  g.rect(4, 20, 20, 6, '#f4f4f0').rect(4, 20, 20, 1, '#2a2a34').ell(8, 26, 2, 1.4, '#2a2a34').ell(20, 26, 2, 1.4, '#2a2a34');
+  g.rect(6, 22, 16, 2, '#3c5ca8');
+  g.ell(14, 10, 6, 6.4, '#f4f4f0').rect(8, 3, 12, 3, '#2a2a34');
+  g.px(11, 9, K).px(17, 9, K).rect(12, 13, 5, 1, K);
+  return g.outline();
+};
+const biaoGe = () => human({ shirt: '#f4f4f0', pants: '#3a3a44', hair: '#2a2024', wide: 1, extra: (g) => {
+  g.rect(11, 7, 3, 2, '#2a2a34').rect(15, 7, 3, 2, '#2a2a34');
+  g.px(12, 13, '#f0d038').px(13, 14, '#f0d038').px(15, 14, '#f0d038').px(16, 13, '#f0d038');
+  g.rect(22, 20, 4, 4, '#9aa0a8').rect(21, 19, 6, 1, '#9aa0a8').rect(23, 18, 2, 1, '#9aa0a8');
+} });
+const theRock = () => human({ skin: '#b07850', shirt: '#2a2a34', pants: '#3a3a44', arms: '#b07850', wide: 2, extra: (g) => {
+  g.ell(14, 8, 4.6, 4.8, '#b07850').px(13, 3, '#f8f4ec').px(14, 3, '#f8f4ec');
+  g.px(11, 6, K).px(12, 5, K).px(16, 6, K).px(17, 6, K);
+  g.px(12, 8, K).px(16, 8, K).rect(13, 11, 3, 1, '#7a4030');
+} });
+const mason = () => human({ shirt: '#9a9a90', pants: '#5a5040', hair: '#2a2024', extra: (g) => {
+  g.ell(14, 4, 6, 1.6, '#f0c830').rect(10, 2, 9, 2, '#f0c830');
+  g.px(11, 17, '#c8c8c8').px(16, 19, '#c8c8c8');
+  g.rect(20, 18, 7, 3, '#b84a30').rect(20, 21, 7, 3, '#c85a38').line(20, 21, 26, 21, '#d8d0c0');
+} });
+const superman = () => human({ shirt: '#3c5ca8', pants: '#3c5ca8', arms: '#3c5ca8', hair: '#2a2024', extra: (g) => {
+  g.px(14, 7, '#2a2024');
+  g.ell(14, 15, 2.6, 2, '#d83830').px(14, 15, '#f0d038');
+  g.rect(10, 20, 9, 1, '#f0d038');
+  g.rect(4, 12, 3, 13, '#d83830').rect(21, 12, 3, 13, '#d83830');
+  g.px(12, 8, '#d83830').px(16, 8, '#d83830');
+} });
+const dancingUncle = () => human({ shirt: '#f4f4f0', pants: '#2a2a34', extra: (g) => {
+  g.ell(14, 3, 6.4, 3.4, '#2a2024');
+  g.rect(13, 12, 2, 4, '#d83830');
+  g.line(4, 6, 8, 13, '#f0c098').line(24, 22, 20, 16, '#f0c098');
+  g.px(3, 18, '#f0d038').px(25, 4, '#f0d038').px(2, 10, '#f0d038');
+} });
+const storm = () => human({ skin: '#7a4a30', shirt: '#2a2a34', pants: '#2a2a34', arms: '#2a2a34', extra: (g) => {
+  g.ell(14, 4, 6.4, 3.4, '#f4f4f0').rect(8, 5, 2, 10, '#f4f4f0').rect(19, 5, 2, 10, '#f4f4f0');
+  g.px(12, 8, '#f4f4f0').px(16, 8, '#f4f4f0');
+  g.line(24, 2, 22, 7, '#f0e060').line(22, 7, 25, 7, '#f0e060').line(25, 7, 23, 12, '#f0e060');
+} });
+const zhuge = () => human({ shirt: '#f4f4f0', pants: '#c8c8c0', arms: '#f4f4f0', extra: (g) => {
+  g.rect(11, 0, 7, 5, '#3a3a44').rect(10, 4, 9, 1, '#3a3a44');
+  g.line(13, 12, 14, 15, '#2a2024').line(15, 12, 14, 15, '#2a2024');
+  g.ell(23, 14, 3, 4, '#f4f4f0').line(23, 17, 22, 22, '#7a5030');
+} });
+const weatherman = () => human({ shirt: '#f0c830', pants: '#2c3c70', hair: '#5a3e28', extra: (g) => {
+  g.ell(14, 4, 5.4, 2, '#5a3e28');
+  g.line(22, 12, 22, 20, '#2a2a34').ell(22, 11, 1.4, 1.6, '#3a3a44');
+  for (const [x, y] of [[3, 3], [5, 9], [2, 15], [25, 4], [26, 20]]) g.line(x, y, x + 2, y + 1, '#9ad8f0');
+} });
+
 // ── 動物 NPC：動物的頭臉，身體穿制服 ──
 /** 穿衣服的動物：body 決定制服，head 畫頭 */
 function animalPerson({ shirt, pants, head, extra }) {
@@ -424,6 +513,10 @@ const DRAW = {
   AOKIJI: aokiji, ANGLER: angler, RAFTING: rafting, AQUAMAN: aquaman, LIFEGUARD: lifeguard,
   BULL_KING: bullKing, COLONEL: colonel, HULK: hulk, RYOTSU: ryotsu, GAARA: gaara,
   RONALD: ronald, BATMAN: batman, MOUNTAIN_MONKEY: mountainMonkey, HANZO: hanzo,
+  CHEN_PINGWEI: chenPingwei, MUSTANG: mustang, RAMSAY: ramsay, TONGSHEN: tongshen,
+  KISAME: kisame, ELSA: elsa, BRUCE_LEE: bruceLee, CHEN_CAIYOU: chenCaiyou,
+  BIAO_GE: biaoGe, THE_ROCK: theRock, MASON: mason,
+  SUPERMAN: superman, DANCING_UNCLE: dancingUncle, STORM: storm, ZHUGE: zhuge, WEATHERMAN: weatherman,
   RAT: rat, PIGEON: pigeon, STAFF: staff, CAT_STAFF: catStaff, SALES: sales, COW: cow, PIG: pig, SHEEP: sheep, CHICKEN: chicken, ACE: ace, THING: thing, IRON_FAN: ironFan, FIREFIGHTER: firefighter };
 const cache = {};
 

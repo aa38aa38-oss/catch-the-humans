@@ -277,4 +277,106 @@ export const MOVES = {
     effect: { stat: 'acc', stages: -1, target: 'foe', limit: 2 },
     text: '{user}消失了。……其實躲在{foe}背後。',
   },
+  // ── 第三批野生人類 ──
+  // 火
+  SEAT_REMOVAL: {
+    name: '拆坐墊', kind: 'attack', element: 'FIRE', pp: 15, power: 40, accuracy: 100,
+    effect: { stat: 'def', stages: -1, target: 'foe', chance: 0.5 },
+    text: '{user}二話不說，把{foe}的坐墊拆了下來。',
+  },
+  WHY_SO_LOUD: { name: '你在大聲什麼啦', kind: 'attack', element: 'FIRE', pp: 10, power: 75, accuracy: 90 },
+  SNAP_SPARK: {
+    name: '火花手套彈指', kind: 'status', element: 'FIRE', pp: 10, accuracy: 85,
+    effect: { status: 'burn', target: 'foe' },
+    text: '啪！{user}彈了一下手指。',
+  },
+  FLAME_ALCHEMY: { name: '高溫定點引爆', kind: 'attack', element: 'FIRE', pp: 10, power: 80, accuracy: 90 },
+  STILL_RAW: {
+    name: '生到還在叫', kind: 'attack', element: 'FIRE', pp: 15, power: 40, accuracy: 100,
+    effect: { stat: 'def', stages: -1, target: 'foe', chance: 0.5 },
+  },
+  IDIOT_SANDWICH: {
+    name: '白吐司夾頭', kind: 'status', element: 'FIRE', pp: 10, accuracy: 85,
+    effect: { status: 'burn', target: 'foe' },
+    text: '{user}用兩片白吐司夾住{foe}的頭：「你是什麼？」',
+  },
+  DESK_SLAM: { name: '拍桌重擊', kind: 'attack', element: 'FIRE', pp: 10, power: 75, accuracy: 90 },
+  BLAME_SHIFT: {
+    name: '咆哮甩鍋', kind: 'attack', element: 'FIRE', pp: 15, power: 40, accuracy: 100,
+    effect: { stat: 'def', stages: -1, target: 'foe', chance: 0.5 },
+  },
+  // 水
+  SHARK_BOMB: { name: '大鮫彈之術', kind: 'attack', element: 'WATER', pp: 10, power: 75, accuracy: 90 },
+  SHARK_PRISON: {
+    name: '水牢鮫舞', kind: 'attack', element: 'WATER', pp: 15, power: 40, accuracy: 100,
+    effect: { stat: 'acc', stages: -1, target: 'foe', chance: 0.5, limit: 2 },
+  },
+  FROZEN_LAND: {
+    name: '冰封萬里', kind: 'attack', element: 'WATER', pp: 15, power: 45, accuracy: 100,
+    effect: { stat: 'atk', stages: -1, target: 'foe', chance: 0.5 },
+  },
+  ICE_CASTLE: {
+    name: '冰雪城堡', kind: 'status', element: 'WATER', pp: 10, accuracy: 100,
+    effect: { stat: 'def', stages: 1, target: 'self' },
+  },
+  BE_WATER: {
+    name: '化水無形', kind: 'status', element: 'WATER', pp: 10, accuracy: 100,
+    effect: { stat: 'def', stages: 1, target: 'self' },
+  },
+  ONE_INCH: { name: '寸勁連擊', kind: 'attack', element: 'WATER', pp: 15, power: 20, accuracy: 95, hits: [2, 5] },
+  PRESSURE_GROUT: {
+    name: '高壓灌注止水', kind: 'status', element: 'WATER', pp: 10, accuracy: 100,
+    effect: { stat: 'def', stages: 1, target: 'self' },
+  },
+  POLE_BARRIER: {
+    name: '全台電線桿結界', kind: 'attack', element: 'WATER', pp: 15, power: 45, accuracy: 100,
+    effect: { stat: 'atk', stages: -1, target: 'foe', chance: 0.5 },
+  },
+  // 土
+  BREAKWATER: {
+    name: '海岸線防波堤', kind: 'status', element: 'EARTH', pp: 10, accuracy: 100,
+    effect: { stat: 'def', stages: 1, target: 'self' },
+  },
+  TETRAPOD: { name: '消波塊鎮壓', kind: 'attack', element: 'EARTH', pp: 10, power: 75, accuracy: 90 },
+  EYEBROW_RAISE: {
+    name: '眉毛挑動', kind: 'status', element: 'EARTH', pp: 10, accuracy: 100,
+    effect: { stat: 'def', stages: 1, target: 'self' },
+  },
+  PEOPLES_ELBOW: { name: '人民之肘', kind: 'attack', element: 'EARTH', pp: 10, power: 80, accuracy: 90 },
+  BRICK_WALL: {
+    name: '紅磚牆構築', kind: 'status', element: 'EARTH', pp: 10, accuracy: 100,
+    effect: { stat: 'def', stages: 1, target: 'self' },
+  },
+  GROUT_SEAL: { name: '灌漿封頂', kind: 'attack', element: 'EARTH', pp: 10, power: 70, accuracy: 95 },
+  // 風
+  SONIC_TAKEOFF: {
+    name: '音爆起飛', kind: 'attack', element: 'WIND', pp: 15, power: 45, accuracy: 100,
+    effect: { stat: 'def', stages: -1, target: 'foe', chance: 0.5 },
+  },
+  HEAT_VISION_DIVE: { name: '熱視線俯衝', kind: 'attack', element: 'WIND', pp: 10, power: 80, accuracy: 90 },
+  SHAKE_SHAKE: { name: '搖咧搖咧', kind: 'attack', element: 'WIND', pp: 20, power: 40, accuracy: 100, priority: 1 },
+  AFRO_SPIN: { name: '爆炸頭旋轉', kind: 'attack', element: 'WIND', pp: 15, power: 20, accuracy: 95, hits: [2, 5] },
+  SUMMON_TORNADO: {
+    name: '召喚龍捲風', kind: 'attack', element: 'WIND', pp: 15, power: 45, accuracy: 100,
+    effect: { stat: 'acc', stages: -1, target: 'foe', chance: 0.5, limit: 2 },
+  },
+  AIR_SHIELD: {
+    name: '高空氣流護盾', kind: 'status', element: 'WIND', pp: 10, accuracy: 100,
+    effect: { stat: 'def', stages: 1, target: 'self' },
+  },
+  EAST_WIND: {
+    name: '七星壇借東風', kind: 'status', element: 'WIND', pp: 10, accuracy: 100,
+    effect: { stat: 'atk', stages: 2, target: 'self' },
+    text: '{user}：「萬事俱備，只欠東風。」東風來了。',
+  },
+  EIGHT_TRIGRAMS: {
+    name: '八卦陣迷霧', kind: 'attack', element: 'WIND', pp: 15, power: 55, accuracy: 100,
+    effect: { stat: 'acc', stages: -1, target: 'foe', chance: 0.4, limit: 2 },
+  },
+  GUST_WARNING: { name: '強烈陣風警報', kind: 'attack', element: 'WIND', pp: 20, power: 40, accuracy: 100, priority: 1 },
+  TWIN_TYPHOON: {
+    name: '雙颱共舞路徑圖', kind: 'status', element: 'WIND', pp: 15, accuracy: 100,
+    effect: { stat: 'acc', stages: -1, target: 'foe', limit: 2 },
+    text: '{foe}盯著颱風路徑圖，看到頭暈了。',
+  },
 };
