@@ -216,7 +216,7 @@ document.addEventListener('contextmenu', (e) => { if (!typing(e)) e.preventDefau
 
 // ───────── 文字輸入面板（匯出／匯入存檔用）─────────
 // 畫布不能打字，所以蓋一層網頁的文字框上去。回傳使用者按的按鈕索引（取消 = -1）和文字框內容。
-export function panel({ title, note = '', value = '', readonly = false, buttons }) {
+export function panel({ title, note = '', value = '', readonly = false, noKeyboard = false, buttons }) {
   return new Promise((resolve) => {
     const el = document.createElement('div');
     el.className = 'panel';
@@ -226,6 +226,8 @@ export function panel({ title, note = '', value = '', readonly = false, buttons 
     const ta = el.querySelector('textarea');
     ta.value = value;
     ta.readOnly = readonly;
+    // 只需要貼上時不叫出鍵盤（手機鍵盤會把面板推出畫面）；長按一樣可以選「貼上」
+    if (noKeyboard) ta.inputMode = 'none';
     const msg = el.querySelector('.panel-msg');
     const done = (i) => {
       // 收起手機鍵盤、把畫面捲回原位，不然遊戲畫面會停在被推上去的位置
@@ -245,7 +247,7 @@ export function panel({ title, note = '', value = '', readonly = false, buttons 
       el.querySelector('.panel-btns').append(btn);
     });
     document.body.append(el);
-    if (readonly) { ta.focus(); ta.select(); } else ta.focus();
+    if (readonly) { ta.focus(); ta.select(); } else if (!noKeyboard) ta.focus();
   });
 }
 

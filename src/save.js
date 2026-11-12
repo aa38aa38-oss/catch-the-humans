@@ -26,13 +26,14 @@ export const G = {
   best: {}, // 圖鑑：每種人類抓過的最高肉質
   caught: {}, // 每種人類總共抓過幾隻（抓滿 4 隻可以快速收服）
   pvp: { w: 0, l: 0, d: 0 },
+  animalSlot: 0, // 家畜在隊伍裡排第幾個（0 = 第一個上場）
 };
 
 export function newGame(animalId) {
   Object.assign(G, {
     v: SAVE_VERSION, animal: createIndividual('animal', animalId, 5), humans: [], team: [], nextNo: 1,
     pos: { ...START }, respawn: { ...FIRST_RESPAWN }, money: STARTING_MONEY, bag: { ...STARTING_BAG }, repel: 0,
-    flags: {}, seen: [], best: {}, caught: {}, pvp: { w: 0, l: 0, d: 0 },
+    flags: {}, seen: [], best: {}, caught: {}, pvp: { w: 0, l: 0, d: 0 }, animalSlot: 0,
   });
   save();
 }
@@ -48,7 +49,18 @@ export function healAll() {
   }
 }
 /** 目前的隊伍（個體陣列），家畜永遠在第一個 */
-export const teamInds = () => [G.animal, ...G.team.map(findHuman).filter(Boolean)];
+/** 隊伍（照上場順序）：家畜可以排在任何位置，第一個就是戰鬥時先上場的 */
+export function teamInds() {
+  const hs = G.team.map(findHuman).filter(Boolean);
+  const k = Math.max(0, Math.min(G.animalSlot ?? 0, hs.length));
+  return [...hs.slice(0, k), G.animal, ...hs.slice(k)];
+}
+
+/** 用新的順序設定隊伍（inds 要包含家畜） */
+export function setTeamOrder(inds) {
+  G.animalSlot = Math.max(0, inds.findIndex((x) => x.kind === 'animal'));
+  G.team = inds.filter((x) => x.kind === 'human').map((x) => x.uid);
+}
 
 /** 從牧場裡的人類算出每種的最高肉質（舊存檔升級用） */
 function bestOf(humans) {
@@ -149,6 +161,7 @@ export function load() {
     best: d.best ?? bestOf(d.humans ?? []),
     caught: d.caught ?? countOf(d.humans ?? []),
     pvp: { w: 0, l: 0, d: 0, ...d.pvp },
+    animalSlot: Number.isInteger(d.animalSlot) ? d.animalSlot : 0,
   });
   G.team = G.team.filter((uid) => findHuman(uid)).slice(0, TEAM_HUMANS);
   for (const ind of [G.animal, ...G.humans]) if (!ind.moves?.length) ind.moves = defaultMoves(ind.kind, ind.species, ind.level);

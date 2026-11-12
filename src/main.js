@@ -15,6 +15,7 @@ import { canConnect, openRoom } from './net.js';
 import { myPresence, checkOpponent, setupBattle, encodeAct, mustChoose, stepActions } from './pvp.js';
 import { randomId } from './rng.js';
 import { exportCode, importCode, SAVE_LOCK } from './save.js';
+import { setTeamOrder } from './save.js';
 import { G, save, load, hasSave, newGame, teamInds, findHuman, findInd, healAll, TEAM_HUMANS } from './save.js';
 import { explore, drawWorld, placeAt } from './overworld.js';
 import { synthesize, shipPrice, SYNTH_MATERIALS, MAX_BOOST } from './ranch.js';
@@ -274,7 +275,7 @@ function drawRanch(now) {
   const { w, l } = G.pvp;
   if (w + l) text(`PK ${w}勝${l}敗`, 18, 72, C.soft);
   sprite(a.species, 240, 34, 3);
-  teamInds().slice(1).forEach((h, i) => {
+  teamInds().filter((x) => x.kind === 'human').forEach((h, i) => {
     const shake = Math.sin(now / 240 + i * 1.7) * 2;
     const x = 40 + i * 76 + shake;
     // 鐵鏈拴在脖子上
@@ -458,6 +459,21 @@ async function talk(thing) {
   await say('隊伍的體力和招式次數全部回滿了！');
 }
 
+/** 用方向鍵輸入數字（不用叫出手機鍵盤）：◀▶ 換位數、▲▼ 改數字、A 確定、B 取消 */
+async function pickNumber(label, len) {
+  const d = Array(len).fill(0);
+  let pos = 0;
+  for (;;) {
+    show(`${label}：${d.map((x, i) => (i === pos ? `【${x}】` : ` ${x} `)).join('')} 元\n◀▶ 換位數　▲▼ 改數字　A 確定`);
+    const k = await waitKey(['LEFT', 'RIGHT', 'UP', 'DOWN', 'A', 'B']);
+    if (k === 'B') { clearText(); return null; }
+    if (k === 'A') { clearText(); sfx('blip'); return Number(d.join('')); }
+    if (k === 'LEFT' || k === 'RIGHT') pos = (pos + (k === 'LEFT' ? len - 1 : 1)) % len;
+    else d[pos] = (d[pos] + (k === 'UP' ? 1 : 9)) % 10;
+    sfx('move');
+  }
+}
+
 // ───────── 能力畫面：身體素質、經驗值、招式 ─────────
 let STATS = null;
 
@@ -510,17 +526,14 @@ function drawStats() {
 
 // ───────── 暗門・測試室（看美術、隨意組隊伍、跟任何人類對戰）─────────
 // 入口在廣場左下角。裡面做的事都不會存檔，出來就恢復原本進度。
-const SECRET_ANSWERS = ['八萬一', '81000', '八萬一千', '8萬1'];
+const SECRET_ANSWER = 81000; // 公道價八萬一
 let SECRET = null; // { ids }：瀏覽人類清單時，右邊顯示目前選到的那隻
 
 async function secretDoor() {
-  const r = await panel({
-    title: '暗門',
-    note: '門上刻著一行字：「我跟你講，公道價是多少？」',
-    buttons: [{ label: '回答' }, { label: '離開', cancel: true }],
-  });
-  if (r.i < 0) return;
-  if (!SECRET_ANSWERS.includes(r.value.replace(/\s+/g, ''))) return say('門動也不動。暗號好像不對。');
+  await say('門上刻著一行字：「我跟你講，公道價是多少？」');
+  const n = await pickNumber('公道價', 5);
+  if (n === null) return;
+  if (n !== SECRET_ANSWER) return say('門動也不動。暗號好像不對。');
   sfx('caught');
   await say('喀啦——暗門打開了！裡面是一間測試室。');
   save();
@@ -760,40 +773,51 @@ const humanLabel = (h) => {
 async function teamScreen() {
   for (;;) {
     scene = 'ranch';
-    const [ahp, amax] = hpOf(G.animal);
-    const slots = [`${nameOf(G.animal)} Lv${G.animal.level} ${ahp > 0 ? `${ahp}/${amax}` : '倒下'}（固定）`];
-    for (let i = 0; i < TEAM_HUMANS; i++) {
-      const h = findHuman(G.team[i]);
-      slots.push(h ? humanLabel(h) : '（空位）');
-    }
-    show('選擇要更換的位置。');
+    const team = teamInds();
+    const label = (ind) => {
+      if (ind.kind === 'human') return humanLabel(ind);
+      const [hp, max] = hpOf(ind);
+      return `${nameOf(ind)} Lv${ind.level} ${hp > 0 ? `${hp}/${max}` : '倒下'}（家畜）`;
+    };
+    const slots = team.map(label);
+    while (slots.length < TEAM_HUMANS + 1) slots.push('（空位）');
+    show('排第一個的，戰鬥時先上場。');
     const i = await menu(slots, { x: 0, y: 0, w: W, h: 192, rowH: 32 });
     if (i < 0) return;
-    const ind = i === 0 ? G.animal : findHuman(G.team[i - 1]);
-    if (ind) {
-      const c = await menu(i === 0 ? ['看能力'] : ['看能力', '更換'], { x: 224, y: 120, w: 160, h: i === 0 ? 62 : 96, rowH: 34 });
-      if (c < 0) continue;
-      if (c === 0) { await statsScreen(ind); continue; }
-    }
-    const current = G.team[i - 1];
-    const pool = G.humans.filter((h) => !G.team.includes(h.uid));
-    const options = pool.map(humanLabel);
-    if (current) options.unshift('移出隊伍');
-    if (!options.length) {
-      await say('養殖場裡沒有其他人類了。');
+    const ind = team[i];
+    if (!ind) {
+      await pickForTeam(null);
       continue;
     }
-    show('要換誰？');
-    const j = await menu(options, { x: 0, y: 0, w: W, h: 192, rowH: 32, rows: 5 });
-    if (j < 0) continue;
-    if (current && j === 0) G.team.splice(i - 1, 1);
-    else {
-      const pickH = pool[current ? j - 1 : j];
-      if (current) G.team[i - 1] = pickH.uid;
-      else G.team.push(pickH.uid);
+    const opts = ['看能力', '換位置', ...(ind.kind === 'human' ? ['換別隻', '移出隊伍'] : [])];
+    const c = await menu(opts, { x: 224, y: 40, w: 160, h: 26 + opts.length * 34, rowH: 34 });
+    if (c < 0) continue;
+    if (opts[c] === '看能力') await statsScreen(ind);
+    if (opts[c] === '換位置') {
+      show(`${nameOf(ind)}要跟誰交換位置？`);
+      const j = await menu(team.map(label), { x: 0, y: 0, w: W, h: 192, rowH: 32 }, { start: i });
+      if (j >= 0 && j !== i) {
+        [team[i], team[j]] = [team[j], team[i]];
+        setTeamOrder(team);
+      }
     }
+    if (opts[c] === '換別隻') await pickForTeam(ind);
+    if (opts[c] === '移出隊伍') setTeamOrder(team.filter((x) => x !== ind));
     save();
   }
+}
+
+/** 從養殖場挑一隻人類放進隊伍：replace 有值就換掉牠，沒有就加在最後 */
+async function pickForTeam(replace) {
+  const pool = G.humans.filter((h) => !G.team.includes(h.uid));
+  if (!pool.length) return say('養殖場裡沒有其他人類了。');
+  show('要換誰？');
+  const j = await menu(pool.map(humanLabel), { x: 0, y: 0, w: W, h: 192, rowH: 32, rows: 5 });
+  if (j < 0) return;
+  const team = teamInds();
+  if (replace) team[team.indexOf(replace)] = pool[j];
+  else team.push(pool[j]);
+  setTeamOrder(team);
 }
 
 async function herdScreen() {
@@ -903,9 +927,9 @@ async function chooseMove() {
       extra: (idx) => {
         const m = MOVES[f.moves[idx]];
         const el = m.element ? `${ELEMENT_NAMES[m.element]}屬性` : '無屬性';
-        box(150, 130, 170, 64);
-        text(m.kind === 'attack' ? `${el}　威力${m.power}` : `${el}　變化技`, 164, 142, C.soft);
-        text(`PP ${f.pp[idx]}/${m.pp}`, 164, 164, f.pp[idx] > 0 ? C.ink : C.hpR);
+        box(210, 108, 168, 82); // 剛好蓋住自己的資訊框
+        text(m.kind === 'attack' ? `${el}　威力${m.power}` : `${el}　變化技`, 224, 124, C.soft);
+        text(`PP ${f.pp[idx]}/${m.pp}`, 224, 152, f.pp[idx] > 0 ? C.ink : C.hpR);
       },
     }, { start });
     if (i < 0) return null;
@@ -1124,7 +1148,8 @@ async function importSave() {
   }
   const r = await panel({
     title: '匯入存檔',
-    note: '在下面長按，選「貼上」，把舊手機匯出的整串文字貼進來。',
+    note: '長按下面的白色框框，選「貼上」，把舊手機匯出的整串文字貼進來。',
+    noKeyboard: true,
     buttons: [
       { label: '匯入', onClick: async (ta, say) => {
         if (importCode(ta.value)) return false;
@@ -1619,7 +1644,7 @@ async function boot() {
   // 檢查美術用：網址加 ?test-battle=代號，直接跟那隻人類打
   const t = new URLSearchParams(location.search).get('test-battle');
   if (t && HUMANS[t]) {
-    newGame('PIG');
+    if (!load()) newGame('PIG');
     AREAS.__TEST = { name: '測試', encounters: [{ species: t, weight: 1, levels: [5, 5] }] };
     return wildBattle('__TEST');
   }

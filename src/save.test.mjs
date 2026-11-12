@@ -32,3 +32,17 @@ for (const id of art) {
   assert(fs.existsSync(new URL(`../art/humans/${id}.png`, import.meta.url)), `少了 art/humans/${id}.png`);
 }
 console.log(`美術檔案檢查通過（${art.length} 張）✔`);
+
+// 隊伍順序：家畜可以換到任何位置，存檔後順序不變
+{
+  const { teamInds, setTeamOrder, save, load } = await import('./save.js');
+  newGame('COW');
+  const a = createIndividual('human', 'ACE', 5, 'CHOICE', { no: 1 }), b = createIndividual('human', 'ELSA', 5, 'CHOICE', { no: 2 });
+  G.humans.push(a, b); G.team = [a.uid, b.uid];
+  assert(teamInds()[0].kind === 'animal', '預設家畜第一');
+  setTeamOrder([a, b, G.animal]);
+  save(); load();
+  const t = teamInds();
+  assert(t[0].uid === a.uid && t[1].uid === b.uid && t[2].kind === 'animal', '家畜換到第三個，存檔後還是第三個');
+  console.log('隊伍順序測試通過 ✔');
+}
