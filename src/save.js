@@ -71,7 +71,11 @@ export function addItem(id, n = 1) {
   if (!G.bag[id]) delete G.bag[id];
 }
 
+/** 暗門測試室裡設成 true：在裡面做的事不會寫進存檔 */
+export const SAVE_LOCK = { on: false };
+
 export function save() {
+  if (SAVE_LOCK.on) return;
   try {
     localStorage.setItem(KEY, JSON.stringify(G));
   } catch {}

@@ -14,13 +14,13 @@ import { createIndividual, nameOf, movesLearnedAt, MOVE_SLOTS } from './individu
 import { canConnect, openRoom } from './net.js';
 import { myPresence, checkOpponent, setupBattle, encodeAct, mustChoose, stepActions } from './pvp.js';
 import { randomId } from './rng.js';
-import { exportCode, importCode } from './save.js';
+import { exportCode, importCode, SAVE_LOCK } from './save.js';
 import { G, save, load, hasSave, newGame, teamInds, findHuman, findInd, healAll, TEAM_HUMANS } from './save.js';
 import { explore, drawWorld, placeAt } from './overworld.js';
 import { synthesize, shipPrice, SYNTH_MATERIALS, MAX_BOOST } from './ranch.js';
 import { ITEMS, SHOP } from './data/items.js';
 import { itemCount, addItem } from './save.js';
-import { SIZE, loadArt } from './sprites.js';
+import { SIZE, loadArt, ART } from './sprites.js';
 import {
   W, H, ctx, C, ELEMENT_COL, GRADE_COL, BIG, FONT, UI, TEXT_X, sleep, ease, tween, loadFont, sfx, waiters, waitKey,
   waitUntil, say, show, clearText, menu, box, text, chip, sprite, hpBar, drawText, drawMenu, ball, TEXT_SPEEDS, getTextSpeed, setTextSpeed,
@@ -362,7 +362,7 @@ function drawWorldScene(now) {
 
 function render(now) {
   ctx.imageSmoothingEnabled = false;
-  const draw = { title: drawTitle, select: drawSelect, story: drawStory, battle: drawBattle, ranch: drawRanch, card: drawCard, lobby: drawLobby, world: drawWorldScene }[scene];
+  const draw = { secret: drawSecret, title: drawTitle, select: drawSelect, story: drawStory, battle: drawBattle, ranch: drawRanch, card: drawCard, lobby: drawLobby, world: drawWorldScene }[scene];
   draw?.(now);
   if (fx.flash > 0) {
     ctx.fillStyle = `rgba(255,255,255,${fx.flash})`;
@@ -442,6 +442,7 @@ async function talk(thing) {
   for (const line of thing.lines ?? []) await say(withAnimal(line));
   if (thing.shop) return shopMenu();
   if (thing.action === 'ranch') return ranchMenu();
+  if (thing.action === 'secret') return secretDoor();
   if (!thing.heal) return;
   show('要吃便當休息嗎？');
   const i = await menu(['吃便當', '不用了'], { x: 180, y: 96, w: 140, h: 96, rowH: 30 });
@@ -455,6 +456,123 @@ async function talk(thing) {
   sfx('heal');
   await say('大家點了素食便當。排骨的部分，誰都沒有碰。');
   await say('隊伍的體力和招式次數全部回滿了！');
+}
+
+// ───────── 暗門・測試室（看美術、隨意組隊伍、跟任何人類對戰）─────────
+// 入口在廣場左下角。裡面做的事都不會存檔，出來就恢復原本進度。
+const SECRET_ANSWERS = ['八萬一', '81000', '八萬一千', '8萬1'];
+const LEVELS = [5, 25, 50, 100];
+let SECRET = null; // { ids }：瀏覽人類清單時，右邊顯示目前選到的那隻
+
+async function secretDoor() {
+  const r = await panel({
+    title: '暗門',
+    note: '門上刻著一行字：「我跟你講，公道價是多少？」',
+    buttons: [{ label: '回答' }, { label: '離開', cancel: true }],
+  });
+  if (r.i < 0) return;
+  if (!SECRET_ANSWERS.includes(r.value.replace(/\s+/g, ''))) return say('門動也不動。暗號好像不對。');
+  sfx('caught');
+  await say('喀啦——暗門打開了！裡面是一間測試室。');
+  save();
+  const backup = JSON.stringify(G);
+  SAVE_LOCK.on = true;
+  try {
+    await secretRoom();
+  } finally {
+    SAVE_LOCK.on = false;
+    Object.assign(G, JSON.parse(backup));
+    placeAt(G.pos);
+    SECRET = null;
+  }
+  scene = 'world';
+  await say('你走出暗門。剛才在裡面發生的事，就像一場夢。');
+}
+
+async function secretRoom() {
+  for (;;) {
+    scene = 'secret';
+    SECRET = null;
+    show('測試室：在這裡做的事都不會存檔。', 220);
+    const items = ['人類一覽', '換家畜', '全員回滿', '離開'];
+    const i = await menu(items, { x: 224, y: 0, w: 160, h: 160, rowH: 34 });
+    clearText();
+    if (i < 0 || items[i] === '離開') return;
+    if (items[i] === '人類一覽') await secretHumans();
+    if (items[i] === '換家畜') await secretAnimal();
+    if (items[i] === '全員回滿') { healAll(); await say('隊伍的體力和招式次數全部回滿了！'); }
+  }
+}
+
+const pickLevel = async () => {
+  const i = await menu(LEVELS.map((l) => `Lv.${l}`), { x: 224, y: 40, w: 160, h: 160, rowH: 34 });
+  return i < 0 ? null : LEVELS[i];
+};
+const pickGrade = async () => {
+  const i = await menu(GRADES.map((g) => g.name), { x: 224, y: 40, w: 160, h: 130, rowH: 34 });
+  return i < 0 ? null : GRADES[i].id;
+};
+
+async function secretHumans() {
+  const ids = Object.keys(HUMANS).sort((a, b) => HUMANS[a].no - HUMANS[b].no);
+  let start = 0;
+  for (;;) {
+    scene = 'secret';
+    SECRET = { ids };
+    const i = await menu(ids.map((id) => `${pad3(HUMANS[id].no)} ${HUMANS[id].name}`), { x: 0, y: 0, w: 200, h: H, rowH: 32, rows: 8 }, { start });
+    if (i < 0) return;
+    start = i;
+    const id = ids[i];
+    const act = await menu(['跟牠對戰', '加入隊伍', '返回'], { x: 224, y: 120, w: 160, h: 130, rowH: 34 });
+    if (act < 0 || act === 2) continue;
+    const gradeId = await pickGrade();
+    if (!gradeId) continue;
+    const level = await pickLevel();
+    if (!level) continue;
+    if (act === 0) {
+      SECRET = null;
+      await wildBattle(null, { species: id, level, gradeId });
+    } else {
+      const h = createIndividual('human', id, level, gradeId, { no: G.nextNo++ });
+      G.humans.push(h);
+      G.team = [h.uid, ...G.team].slice(0, TEAM_HUMANS);
+      await say(`${HUMANS[id].name}（${gradeOf(gradeId).name} Lv.${level}）加入隊伍了！`);
+    }
+  }
+}
+
+async function secretAnimal() {
+  const i = await menu(ANIMAL_ORDER.map((a) => ANIMALS[a].name), { x: 224, y: 40, w: 160, h: 164, rowH: 34 });
+  if (i < 0) return;
+  const level = await pickLevel();
+  if (!level) return;
+  G.animal = createIndividual('animal', ANIMAL_ORDER[i], level);
+  await say(`換成 ${ANIMALS[ANIMAL_ORDER[i]].name} Lv.${level} 了。`);
+}
+
+function drawSecret(now) {
+  ctx.fillStyle = '#2a2040';
+  ctx.fillRect(0, 0, W, H);
+  if (SECRET?.ids && UI.menu) {
+    // 人類一覽：右邊放大顯示目前選到的那隻
+    const id = SECRET.ids[UI.menu.index];
+    const h = id && HUMANS[id];
+    if (h) {
+      ctx.fillStyle = '#4a3c6a';
+      ctx.beginPath(); ctx.ellipse(292, 150, 70, 12, 0, 0, Math.PI * 2); ctx.fill();
+      sprite(id, 236, 38, 4);
+      text(h.name, 292, 166, '#f6f4ea', FONT, 'center');
+      chip(`${ELEMENT_NAMES[h.element]}屬性`, 262, 190, ELEMENT_COL[h.element]);
+      text(ART.includes(id) ? '正式美術' : '暫時版', 292, 220, ART.includes(id) ? '#f8d040' : C.soft, FONT, 'center');
+    }
+  } else {
+    text('暗門・測試室', 18, 14, '#f6f4ea');
+    const team = teamInds();
+    team.forEach((ind, i) => sprite(ind.species, 8 + i * 42, 120, i ? 1.5 : 2));
+    team.forEach((ind, i) => text(`Lv${ind.level}`, 8 + i * 42, 168, C.soft));
+  }
+  if (UI.text) { box(0, 192, W, 96); drawText(); }
+  drawMenu();
 }
 
 // ───────── 人類養殖場：合成強化、出貨 ─────────
@@ -975,8 +1093,8 @@ async function textSpeedSetting() {
 const ACTIONS = ['技能', '換人', '背包', '逃跑'];
 const ACTION_BOX = { x: 152, y: 192, w: 168, h: 96, rowH: 34, cols: 2, colW: 74 };
 
-async function wildBattle(areaId) {
-  const w = rollWild(AREAS[areaId], Math.random, GRADES);
+async function wildBattle(areaId, force = null) {
+  const w = force ?? rollWild(AREAS[areaId], Math.random, GRADES);
   const wild = createIndividual('human', w.species, w.level, w.gradeId);
   const st = createBattle({ mode: 'wild', seed: (Math.random() * 2 ** 32) >>> 0, teams: [teamInds(), [wild]] });
   startBattleView(st, 0);
