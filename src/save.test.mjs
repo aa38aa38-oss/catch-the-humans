@@ -21,3 +21,14 @@ assert(importCode(' ' + code.slice(0, 30) + '\n' + code.slice(30) + ' '), '正�
 if (JSON.stringify(G) !== before) { const a = JSON.parse(before), b = G; for (const k in a) if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) console.error(k, JSON.stringify(a[k]).slice(0,200), JSON.stringify(b[k]).slice(0,200)); }
 assert(JSON.stringify(G) === before, '匯入後進度一模一樣');
 console.log('匯出／匯入存檔測試全部通過 ✔');
+
+// 美術：ART 清單裡的每張圖都要存在，而且是有效的人類代號
+const fs = await import('node:fs');
+const { HUMANS } = await import('./data/humans.js');
+const src = fs.readFileSync(new URL('./sprites.js', import.meta.url), 'utf8');
+const art = JSON.parse(src.match(/export const ART = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
+for (const id of art) {
+  assert(HUMANS[id], `ART 裡的 ${id} 不是人類代號`);
+  assert(fs.existsSync(new URL(`../art/humans/${id}.png`, import.meta.url)), `少了 art/humans/${id}.png`);
+}
+console.log(`美術檔案檢查通過（${art.length} 張）✔`);

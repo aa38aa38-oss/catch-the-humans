@@ -145,7 +145,7 @@
 <body>
 <div class="console">
   <div class="bezel">
-    <canvas id="screen" width="320" height="288" aria-label="遊戲畫面"></canvas>
+    <canvas id="screen" width="384" height="288" aria-label="遊戲畫面"></canvas>
     <div class="brand">人類捕捉計畫</div>
   </div>
 
@@ -172,7 +172,7 @@
 </div>
 
 <script>
-  // 把畫面放到最大，同時保持 10:9 比例
+  // 把畫面放到最大，同時保持 4:3 比例
   (function () {
     const cv = document.getElementById('screen');
     function fit() {
@@ -181,10 +181,10 @@
       const maxH = portrait ? innerHeight * 0.5 : innerHeight - 20;
       // 直向：寬度幾乎撐滿（扣掉兩側 8px 與外框 6px）
       const maxW = portrait ? innerWidth - 30 : innerWidth - 2 * 150 - 60;
-      let h = Math.min(maxH, (maxW * 9) / 10);
+      let h = Math.min(maxH, (maxW * 3) / 4);
       h = Math.max(144, Math.floor(h));
       cv.style.height = h + 'px';
-      cv.style.width = Math.floor((h * 10) / 9) + 'px';
+      cv.style.width = Math.floor((h * 4) / 3) + 'px';
     }
     addEventListener('resize', fit);
     fit();

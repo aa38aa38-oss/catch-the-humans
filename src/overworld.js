@@ -99,13 +99,13 @@ function drawTile(t, x, y, now) {
 export function drawWorld(now) {
   const m = currentMap();
   // 鏡頭：主角固定在畫面中間（第 5 欄、第 4 列）
-  const camX = OW.px - 144;
-  const camY = OW.py - 128;
+  const camX = OW.px - (W / 2 - TILE);
+  const camY = OW.py - (H / 2 - TILE);
   ctx.fillStyle = '#16161c';
   ctx.fillRect(0, 0, W, H);
   const x0 = Math.floor(camX / TILE), y0 = Math.floor(camY / TILE);
   for (let ty = y0; ty <= y0 + 10; ty++)
-    for (let tx = x0; tx <= x0 + 11; tx++) {
+    for (let tx = x0; tx <= x0 + Math.ceil(W / TILE); tx++) {
       const t = m.rows[ty]?.[tx];
       if (t) drawTile(t, tx * TILE - camX, ty * TILE - camY, now);
     }

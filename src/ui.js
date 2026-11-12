@@ -3,8 +3,8 @@
 import { getSprite, SIZE } from './sprites.js';
 
 // ───────── 畫布 ─────────
-// 內部畫布 320×288（GB 160×144 的兩倍，讓中文字清楚），再整體放大到螢幕。
-export const W = 320, H = 288;
+// 內部畫布 384×288（4:3），再整體放大到螢幕。
+export const W = 384, H = 288;
 const cv = document.getElementById('screen');
 export const ctx = cv.getContext('2d');
 const FAMILY = '"DotGothic16", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif';
@@ -251,7 +251,7 @@ export async function copyText(ta) {
 
 // ───────── 文字框 ─────────
 export const UI = { text: null, menu: null };
-export const TEXT_X = 18, TEXT_W = 284;
+export const TEXT_X = 18, TEXT_W = W - 36;
 
 function wrap(text, maxW) {
   ctx.font = FONT;
@@ -329,6 +329,8 @@ export const clearText = () => (UI.text = null);
  * 回傳選到的索引；按 B 取消回傳 -1
  */
 export function menu(items, box, { cancel = true, start = 0 } = {}) {
+  // 舊的選單座標是照 320 寬寫的：貼齊右邊的選單，自動移到新的右邊
+  if (box.x > 0 && box.x + box.w === 320) box = { ...box, x: box.x + W - 320 };
   return new Promise((res) => {
     const cols = box.cols ?? 1;
     const rows = box.rows ?? Math.ceil(items.length / cols);

@@ -17,6 +17,8 @@
 - 人類：`src/data/humans.js`（精簡格式 `h(...)`，一隻一筆，依屬性分組）
 - 招式：`src/data/moves.js`；出現地點：`src/data/areas.js`；家畜：`src/data/animals.js`
 - 地圖：`src/data/maps/`；道具：`src/data/items.js`；像素圖：`src/sprites.js`（暫時版，之後換圖檔）
+- 正式美術：原圖放 `art/source/代號.png` → `python3 scripts/process-art.py` → `art/humans/代號.png`，再把代號加進 `src/sprites.js` 的 `ART`。
+  - 檢查美術只截一張圖：本機開 `dist/index.html?test-battle=代號`，等 4.5 秒（出場字幕條會出現）再截。
 - 新增人類的填寫範本：`docs/新增人類範本.md`；候選名單：`docs/人類候選名單.md`
 
 ## 測試與發布

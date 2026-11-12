@@ -525,3 +525,23 @@ export function getSprite(id) {
   if (!cache[id]) cache[id] = DRAW[id]().toCanvas();
   return cache[id];
 }
+
+// ───────── 正式美術（Gemini 原圖 → scripts/process-art.py → art/humans/代號.png，112×112）─────────
+// 有圖的人類用圖，沒有的繼續用上面的暫時版。新增圖時把代號加進 ART。
+export const ART = ['CHEN_PINGWEI', 'RAFTING', 'BIAO_GE', 'DANCING_UNCLE'];
+
+/** 遊戲開始前載入所有圖；載入失敗的就用暫時版 */
+export function loadArt() {
+  return Promise.all(ART.map((id) => new Promise((done) => {
+    const img = new Image();
+    img.onload = () => {
+      const cv = document.createElement('canvas');
+      cv.width = img.width; cv.height = img.height;
+      cv.getContext('2d').drawImage(img, 0, 0);
+      cache[id] = cv;
+      done();
+    };
+    img.onerror = () => done();
+    img.src = `art/humans/${id}.png`;
+  })));
+}
