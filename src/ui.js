@@ -227,7 +227,13 @@ export function panel({ title, note = '', value = '', readonly = false, buttons 
     ta.value = value;
     ta.readOnly = readonly;
     const msg = el.querySelector('.panel-msg');
-    const done = (i) => { el.remove(); resolve({ i, value: ta.value }); };
+    const done = (i) => {
+      // 收起手機鍵盤、把畫面捲回原位，不然遊戲畫面會停在被推上去的位置
+      ta.blur();
+      el.remove();
+      window.scrollTo(0, 0);
+      resolve({ i, value: ta.value });
+    };
     buttons.forEach((b, i) => {
       const btn = document.createElement('button');
       btn.type = 'button';
