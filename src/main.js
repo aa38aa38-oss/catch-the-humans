@@ -1,7 +1,7 @@
 // 遊戲流程：標題、選家畜、養殖場、隊伍、野生戰鬥、連線 PK。
 // 規則在 battle.js / capture.js / pvp.js，資料在 data/，畫面工具在 ui.js。
 import {
-  createBattle, runTurn, replace, chooseAiAction, active, aliveSlots, gainExp, expReward, expToNext,
+  createBattle, runTurn, replace, chooseAiAction, active, aliveSlots, gainExp, expReward, expToNext, calcStats,
   fill, pick, tag, rollWild, hasPp, STRUGGLE, makeFighter,
 } from './battle.js';
 import { createCapture, press, update, quickChance, QUICK_AFTER } from './capture.js';
@@ -362,7 +362,7 @@ function drawWorldScene(now) {
 
 function render(now) {
   ctx.imageSmoothingEnabled = false;
-  const draw = { secret: drawSecret, title: drawTitle, select: drawSelect, story: drawStory, battle: drawBattle, ranch: drawRanch, card: drawCard, lobby: drawLobby, world: drawWorldScene }[scene];
+  const draw = { stats: drawStats, secret: drawSecret, title: drawTitle, select: drawSelect, story: drawStory, battle: drawBattle, ranch: drawRanch, card: drawCard, lobby: drawLobby, world: drawWorldScene }[scene];
   draw?.(now);
   if (fx.flash > 0) {
     ctx.fillStyle = `rgba(255,255,255,${fx.flash})`;
@@ -458,10 +458,59 @@ async function talk(thing) {
   await say('隊伍的體力和招式次數全部回滿了！');
 }
 
+// ───────── 能力畫面：身體素質、經驗值、招式 ─────────
+let STATS = null;
+
+async function statsScreen(ind) {
+  STATS = ind;
+  scene = 'stats';
+  clearText();
+  await waitKey(['A', 'B']);
+  STATS = null;
+}
+
+function drawStats() {
+  const ind = STATS;
+  const f = makeFighter(ind, 0, 0);
+  const [hp, max] = hpOf(ind);
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, W, H);
+  box(0, 0, W, H);
+  ctx.fillStyle = C.grass;
+  ctx.beginPath(); ctx.roundRect(14, 14, 120, 120, 6); ctx.fill();
+  sprite(ind.species, 18, 18, 4);
+  text(f.name, 14, 142);
+  text(`Lv.${ind.level}`, 14, 166);
+  if (f.element) chip(ELEMENT_NAMES[f.element], 76, 167, ELEMENT_COL[f.element]);
+  if (ind.kind === 'human') { const g = gradeOf(ind.gradeId); text(g.name, 14, 190, GRADE_COL[g.id]); }
+  // 經驗值
+  const need = expToNext(ind.level);
+  text('經驗值', 14, 216, C.soft);
+  ctx.fillStyle = C.line; ctx.fillRect(14, 240, 120, 6);
+  ctx.fillStyle = C.exp; ctx.fillRect(14, 240, Math.round((120 * Math.min(ind.exp, need)) / need), 6);
+  text(`${ind.exp}/${need}`, 14, 252, C.ink);
+  // 身體素質：條的長度跟「同等級的頂尖數值」比
+  const top = calcStats({ hp: 150, atk: 150, def: 150, spd: 150 }, ind.level);
+  [['體力', 'hp', `${hp}/${max}`], ['攻擊', 'atk'], ['防禦', 'def'], ['速度', 'spd']].forEach(([label, k, shown], i) => {
+    const y = 16 + i * 30;
+    text(label, 150, y, C.soft);
+    text(shown ?? String(f.stats[k]), W - 18, y, C.ink, FONT, 'right');
+    ctx.fillStyle = C.line; ctx.fillRect(196, y + 22, W - 214, 4);
+    ctx.fillStyle = k === 'hp' ? C.exp : C.ink;
+    ctx.fillRect(196, y + 22, Math.round((W - 214) * Math.min(1, f.stats[k] / top[k])), 4);
+  });
+  text('招式', 150, 140, C.soft);
+  f.moves.forEach((m, i) => {
+    const mv = MOVES[m];
+    text(mv.name, 150, 162 + i * 24);
+    text(`PP ${f.pp[i]}/${mv.pp}`, W - 18, 162 + i * 24, C.soft, FONT, 'right');
+  });
+  text('A / B 返回', W - 18, 262, C.soft, FONT, 'right');
+}
+
 // ───────── 暗門・測試室（看美術、隨意組隊伍、跟任何人類對戰）─────────
 // 入口在廣場左下角。裡面做的事都不會存檔，出來就恢復原本進度。
 const SECRET_ANSWERS = ['八萬一', '81000', '八萬一千', '8萬1'];
-const LEVELS = [5, 25, 50, 100];
 let SECRET = null; // { ids }：瀏覽人類清單時，右邊顯示目前選到的那隻
 
 async function secretDoor() {
@@ -494,19 +543,28 @@ async function secretRoom() {
     scene = 'secret';
     SECRET = null;
     show('測試室：在這裡做的事都不會存檔。', 220);
-    const items = ['人類一覽', '換家畜', '全員回滿', '離開'];
-    const i = await menu(items, { x: 224, y: 0, w: 160, h: 160, rowH: 34 });
+    const items = ['人類一覽', '隊伍', '換家畜', '全員回滿', '離開'];
+    const i = await menu(items, { x: 224, y: 0, w: 160, h: 192, rowH: 34 });
     clearText();
     if (i < 0 || items[i] === '離開') return;
     if (items[i] === '人類一覽') await secretHumans();
     if (items[i] === '換家畜') await secretAnimal();
+    if (items[i] === '隊伍') await teamScreen();
     if (items[i] === '全員回滿') { healAll(); await say('隊伍的體力和招式次數全部回滿了！'); }
   }
 }
 
+let lastLevel = 5;
+/** 自由選等級 1～100：◀▶ 加減 1、▲▼ 加減 10 */
 const pickLevel = async () => {
-  const i = await menu(LEVELS.map((l) => `Lv.${l}`), { x: 224, y: 40, w: 160, h: 160, rowH: 34 });
-  return i < 0 ? null : LEVELS[i];
+  for (;;) {
+    show(`等級：Lv.${lastLevel}\n◀▶ 加減 1　▲▼ 加減 10　A 決定`);
+    const k = await waitKey(['LEFT', 'RIGHT', 'UP', 'DOWN', 'A', 'B']);
+    if (k === 'B') { clearText(); return null; }
+    if (k === 'A') { clearText(); sfx('blip'); return lastLevel; }
+    lastLevel = Math.min(100, Math.max(1, lastLevel + { LEFT: -1, RIGHT: 1, UP: 10, DOWN: -10 }[k]));
+    sfx('move');
+  }
 };
 const pickGrade = async () => {
   const i = await menu(GRADES.map((g) => g.name), { x: 224, y: 40, w: 160, h: 130, rowH: 34 });
@@ -711,9 +769,11 @@ async function teamScreen() {
     show('選擇要更換的位置。');
     const i = await menu(slots, { x: 0, y: 0, w: W, h: 192, rowH: 32 });
     if (i < 0) return;
-    if (i === 0) {
-      await say('家畜是你的代表，一定要在隊上。');
-      continue;
+    const ind = i === 0 ? G.animal : findHuman(G.team[i - 1]);
+    if (ind) {
+      const c = await menu(i === 0 ? ['看能力'] : ['看能力', '更換'], { x: 224, y: 120, w: 160, h: i === 0 ? 62 : 96, rowH: 34 });
+      if (c < 0) continue;
+      if (c === 0) { await statsScreen(ind); continue; }
     }
     const current = G.team[i - 1];
     const pool = G.humans.filter((h) => !G.team.includes(h.uid));
